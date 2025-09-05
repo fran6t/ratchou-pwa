@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ratchou - Gestion de Dépenses</title>
+    
+    <!-- PWA Meta Tags -->
+    <meta name="theme-color" content="#667eea">
+    <meta name="description" content="Application de gestion des dépenses familiales - 100% offline et sécurisée">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="Ratchou">
+    <link rel="apple-touch-icon" href="assets/icons/icon-192.png">
+    <link rel="manifest" href="manifest.json">
+    
+    <!-- Stylesheets -->
+    <link href="assets/css/bootstrap.min.css" rel="stylesheet">
+    <link href="assets/css/bootstrap-icons.min.css" rel="stylesheet">
+    <link href="assets/css/app.css" rel="stylesheet">
+    <style>
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        .main-card {
+            border: none;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+        }
+        .code-input {
+            font-size: 2rem;
+            text-align: center;
+            letter-spacing: 0.5rem;
+            font-weight: bold;
+        }
+        .container-hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body class="d-flex align-items-center">
+
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-md-6 col-lg-5">
+                <div class="card main-card">
+                    <div class="card-body p-4 p-md-5">
+                        <div class="text-center mb-4">
+                            <img src="assets/img/Logo_Ratchou.webp" alt="Ratchou Logo" style="height: 100px;">
+                        </div>
+
+                        <!-- ===== LOGIN CONTAINER ===== -->
+                        <div id="login-container" class="container-hidden">
+                            <h1 class="h3 text-center mb-4">Connexion</h1>
+                            <div id="loginError" class="alert alert-danger d-none" role="alert"></div>
+                            <form id="loginForm" autocomplete="off">
+                                <!-- Champ factice pour tromper les gestionnaires de mots de passe -->
+                                <input type="password" style="display:none" autocomplete="new-password">
+                                <div class="mb-3">
+                                    <label for="accessCodeLogin" class="form-label">Code d'accès</label>
+                                    <input type="tel" class="form-control form-control-lg code-input" id="accessCodeLogin" maxlength="4" placeholder="...." required autocomplete="off" inputmode="numeric" pattern="[0-9]{4}" data-lpignore="true" spellcheck="false">
+                                </div>
+                                <button type="submit" class="btn btn-primary btn-lg w-100" id="loginBtn">Se connecter</button>
+                            </form>
+                            <div class="text-center mt-3">
+                                <button class="btn btn-link" id="showSetupBtn">Restaurer ou réinitialiser</button>
+                            </div>
+                        </div>
+
+                        <!-- ===== SETUP CONTAINER ===== -->
+                        <div id="setup-container" class="container-hidden">
+                            <h1 class="h3 text-center mb-4">Configuration</h1>
+                            <div id="setupError" class="alert alert-danger d-none" role="alert"></div>
+                            <form id="setupForm">
+                                <h2 class="h5 border-bottom pb-2 mb-3">1. Sécurité</h2>
+                                <div class="mb-3">
+                                    <label for="accessCodeSetup" class="form-label">Choisissez un code à 4 chiffres</label>
+                                    <input type="tel" class="form-control code-input" id="accessCodeSetup" maxlength="4" inputmode="numeric" pattern="[0-9]{4}">
+                                </div>
+
+                                <h2 class="h5 border-bottom pb-2 mt-4 mb-3">2. Appareil</h2>
+                                <div class="mb-3">
+                                    <label for="deviceId" class="form-label">Choisissez un nom d'appareil</label>
+                                    <input type="text" class="form-control" id="deviceId" placeholder="Ex: Téléphone, Maison...">
+                                </div>
+
+                                <h2 class="h5 border-bottom pb-2 mt-4 mb-3">3. Données (Optionnel)</h2>
+                                <div class="form-check mb-3">
+                                    <input class="form-check-input" type="checkbox" id="hasRestoreFile">
+                                    <label class="form-check-label" for="hasRestoreFile">
+                                        J'ai un fichier de restauration
+                                    </label>
+                                </div>
+                                <div class="mb-3" id="restoreFileContainer" style="display: none;">
+                                    <label for="importFile" class="form-label">Sélectionner le fichier de sauvegarde</label>
+                                    <input type="file" class="form-control" id="importFile" accept=".json,.zip">
+                                    <div class="form-text">Formats acceptés : JSON (.json) ou ZIP (.zip)</div>
+                                </div>
+
+                                <button type="submit" class="btn btn-success w-100 mt-4" id="setupExecuteBtn">Démarrer</button>
+                            </form>
+                             <div class="text-center mt-3">
+                                <button class="btn btn-link" id="showLoginBtn">Annuler</button>
+                            </div>
+                        </div>
+                        
+                        <!-- Status/Progress Area -->
+                        <div id="status-container" class="mt-4 container-hidden">
+                            <div class="progress" style="height: 20px;">
+                                <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%"></div>
+                            </div>
+                            <p class="text-center mt-2" id="status-message"></p>
+                            <button id="continueBtn" class="btn btn-success w-100 mt-3 container-hidden">
+                                <i class="bi bi-check-circle me-2"></i>Continuer vers le tableau de bord
+                            </button>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="assets/js/bootstrap.bundle.min.js"></script>
+    <script src="js/lib/jszip.min.js"></script>
+    <script src="js/core/utils.js"></script>
+    <script src="js/core/indexeddb-wrapper.js"></script>
+    <script src="js/core/models/base-model.js"></script>
+    <script src="js/core/models/comptes-model.js"></script>
+    <script src="js/core/models/categories-model.js"></script>
+    <script src="js/core/models/beneficiaires-model.js"></script>
+    <script src="js/core/models/type_depenses-model.js"></script>
+    <script src="js/core/models/mouvements-model.js"></script>
+    <script src="js/core/models/recurrents-model.js"></script>
+    <script src="js/core/auth.js"></script>
+    <script src="js/core/ratchou-app.js"></script>
+    <script src="js/components/backup-reminder.js"></script>
+    <script src="js/components/import-export.js" type="module"></script>
+    <script src="js/pages/main-controller.js" type="module"></script>
+    <script src="js/pwa/install.js"></script>
+    <script src="js/pwa/persistence.js"></script>
+
+</body>
+</html>

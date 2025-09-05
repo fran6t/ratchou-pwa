@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ratchou - Gestion des mouvements</title>
+    
+    <!-- PWA Meta Tags -->
+    <meta name="theme-color" content="#667eea">
+    <meta name="description" content="Gestion des dépenses familiales - Ratchou">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="Ratchou">
+    <link rel="apple-touch-icon" href="../assets/icons/icon-192.png">
+    <link rel="manifest" href="../manifest.json">
+    
+    <!-- Stylesheets -->
+    <link href="../assets/css/bootstrap.min.css" rel="stylesheet">
+    <link href="../assets/css/bootstrap-icons.min.css" rel="stylesheet">
+    <link href="../assets/css/app.css" rel="stylesheet">
+</head>
+<body class="bg-light">
+    
+    <!-- Loading Overlay -->
+    <div id="loadingOverlay" class="loading-overlay">
+        <div class="loading-content">
+            <div class="spinner-border text-primary mb-3" role="status">
+                <span class="visually-hidden">Chargement...</span>
+            </div>
+            <div id="loadingMessage">Chargement...</div>
+        </div>
+    </div>
+
+    <!-- Navigation -->
+        <!-- Navigation sera injectée par le composant header -->
+
+    <div class="container mt-4">
+        <!-- Search Filters -->
+        <div class="accordion" id="accordionFilters">
+            <div class="accordion-item">
+                <h2 class="accordion-header" id="headingOne">
+                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseOne" aria-expanded="false" aria-controls="collapseOne">
+                        🔎 Filtres de recherche
+                    </button>
+                </h2>
+                <div id="collapseOne" class="accordion-collapse collapse" aria-labelledby="headingOne" data-bs-parent="#accordionFilters">
+                    <div class="card-body">
+                        <form id="searchForm" class="row g-3">
+                            <div class="col-md-3">
+                                <label for="date_from" class="form-label">Date de début</label>
+                                <input type="date" class="form-control" id="date_from" name="date_from">
+                            </div>
+                            <div class="col-md-3">
+                                <label for="date_to" class="form-label">Date de fin</label>
+                                <input type="date" class="form-control" id="date_to" name="date_to">
+                            </div>
+                            <div class="col-md-3">
+                                <label for="compte" class="form-label">Compte</label>
+                                <select class="form-select" id="compte" name="compte">
+                                    <option value="">Tous les comptes</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label for="categorie" class="form-label">Catégorie</label>
+                                <button type="button" class="btn btn-outline-primary rounded-pill rounded-pill w-100" data-panel-target="#categoriePanel" data-input-target="categorie_filter" data-icon="📂" data-original-text="Toutes les catégories">📂 Toutes les catégories</button>
+                                <input type="hidden" id="categorie_filter" name="categorie">
+                            </div>
+                            <div class="col-md-3">
+                                <label for="beneficiaire" class="form-label">Bénéficiaire</label>
+                                <button type="button" class="btn btn-outline-primary rounded-pill w-100" data-panel-target="#beneficiairePanel" data-input-target="beneficiaire_filter" data-icon="👥" data-original-text="Tous les bénéficiaires">👥 Tous les bénéficiaires</button>
+                                <input type="hidden" id="beneficiaire_filter" name="beneficiaire">
+                            </div>
+                            <div class="col-md-3">
+                                <label for="type_depense" class="form-label">Type de paiement</label>
+                                <button type="button" class="btn btn-outline-primary rounded-pill w-100" data-panel-target="#typeDepensePanel" data-input-target="type_depense_filter" data-icon="💳" data-original-text="Tous les types">💳 Tous les types</button>
+                                <input type="hidden" id="type_depense_filter" name="type_depense">
+                            </div>
+                            <div class="col-md-3">
+                                <label for="montant_min" class="form-label">Montant min</label>
+                                <div class="input-group">
+                                    <input type="number" step="0.01" class="form-control" id="montant_min" name="montant_min">
+                                    <span class="input-group-text">€</span>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <label for="montant_max" class="form-label">Montant max</label>
+                                <div class="input-group">
+                                    <input type="number" step="0.01" class="form-control" id="montant_max" name="montant_max">
+                                    <span class="input-group-text">€</span>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="search" class="form-label">Recherche libre</label>
+                                <input type="text" class="form-control" id="search" name="search" placeholder="Recherche dans catégorie, bénéficiaire, type, remarque...">
+                            </div>
+                            <div class="col-12 d-flex gap-2">
+                                <button type="submit" class="btn btn-info rounded-pill">🔍 Rechercher</button>
+                                <button type="button" class="btn btn-secondary rounded-pill" id="clearFilters">🗑️ Effacer les filtres</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Results -->
+        <div class="card shadow-sm mt-4">
+            <div class="card-header results-header d-flex justify-content-between align-items-center">
+                <h5 class="card-title mb-0">
+                    📋 Mouvements trouvés 
+                    <span class="badge bg-light text-dark" id="totalCount">0</span>
+                </h5>
+                <div id="pagination-info"></div>
+            </div>
+            <div class="card-body p-0">
+                <div id="no-results" class="text-center p-4 text-muted" style="display: none;">
+                    <div class="mb-3">📭</div>
+                    <div>Utilisez les filtres ci-dessus pour rechercher des mouvements</div>
+                </div>
+                <div id="results-table" style="display: none;">
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Montant</th>
+                                    <th>Détails</th>
+                                    <th>Compte</th>
+                                </tr>
+                            </thead>
+                            <tbody id="movementsTableBody">
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <!-- Pagination -->
+                <div id="pagination-container" class="d-flex justify-content-center p-3" style="display: none !important;">
+                    <nav>
+                        <ul class="pagination mb-0" id="pagination">
+                        </ul>
+                    </nav>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Sidebar Menu -->
+        <!-- Sidebar sera injecté par le composant sidebar -->
+        </div>
+    </div>
+
+    <!-- Selection Panels -->
+    <div class="panel-slide" id="categoriePanel">
+        <div class="panel-content">
+            <div class="d-flex justify-content-between align-items-center p-3 bg-primary text-white">
+                <h5 class="mb-0">📂 Catégories</h5>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-sm btn-light rounded-pill" onclick="mouvementsController.openAddCategoryModal()" title="Ajouter une catégorie">
+                        <span class="small">+ Ajouter</span>
+                    </button>
+                    <button class="btn btn-link text-white p-0" onclick="closePanels()">✕</button>
+                </div>
+            </div>
+            <div class="filter-section">
+                <input type="text" class="form-control form-control-sm" id="categorieFilter" placeholder="Filtrer les catégories...">
+            </div>
+            <div class="panel-body">
+                <div class="list-group" id="categorieList">
+                    <div class="text-center p-3">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Chargement...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="panel-slide" id="beneficiairePanel">
+        <div class="panel-content">
+            <div class="d-flex justify-content-between align-items-center p-3 bg-primary text-white">
+                <h5 class="mb-0">👥 Bénéficiaires</h5>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-sm btn-light rounded-pill" onclick="mouvementsController.openAddPayeeModal()" title="Ajouter un bénéficiaire">
+                        <span class="small">+ Ajouter</span>
+                    </button>
+                    <button class="btn btn-link text-white p-0" onclick="closePanels()">✕</button>
+                </div>
+            </div>
+            <div class="filter-section">
+                <input type="text" class="form-control form-control-sm" id="beneficiaireFilter" placeholder="Filtrer les bénéficiaires...">
+            </div>
+            <div class="panel-body">
+                <div class="list-group" id="beneficiaireList">
+                    <div class="text-center p-3">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Chargement...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="panel-slide" id="typeDepensePanel">
+        <div class="d-flex justify-content-between align-items-center p-3 bg-primary text-white">
+            <h5 class="mb-0">💳 Types de paiement</h5>
+            <button class="btn btn-link text-white p-0" onclick="closePanels()">✕</button>
+        </div>
+        <div class="p-3">
+            <div class="list-group" id="typeDepenseList">
+                <div class="text-center p-3">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Chargement...</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Add Category Modal -->
+    <div class="modal fade" id="addCategoryModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">📂 Ajouter une catégorie</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="addCategoryForm">
+                        <div class="mb-3">
+                            <label for="newCategoryName" class="form-label">Nom de la catégorie</label>
+                            <input type="text" class="form-control" id="newCategoryName" required placeholder="Ex: Restaurant, Transport...">
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="newCategoryMandatory">
+                            <label class="form-check-label" for="newCategoryMandatory">
+                                Catégorie obligatoire
+                            </label>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary rounded-pill" data-bs-dismiss="modal">Annuler</button>
+                    <button type="button" class="btn btn-primary rounded-pill" id="saveCategoryBtn">Ajouter</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Add Payee Modal -->
+    <div class="modal fade" id="addPayeeModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">👥 Ajouter un bénéficiaire</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="addPayeeForm">
+                        <div class="mb-3">
+                            <label for="newPayeeName" class="form-label">Nom du bénéficiaire</label>
+                            <input type="text" class="form-control" id="newPayeeName" required placeholder="Ex: Carrefour, EDF, Jean Dupont...">
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary rounded-pill" data-bs-dismiss="modal">Annuler</button>
+                    <button type="button" class="btn btn-primary rounded-pill" id="savePayeeBtn">Ajouter</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Movement Modal -->
+    <div class="modal fade" id="editMovementModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">✏️ Modifier le mouvement</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="editMovementForm">
+                        <input type="hidden" id="edit_movement_id" name="movement_id">
+                        
+                        <div class="input-group mb-3">
+                            <span class="input-group-text">Montant</span>
+                            <input type="number" step="0.01" class="form-control" id="edit_montant" name="montant" required>
+                            <span class="input-group-text">€</span>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Catégorie</label>
+                            <button type="button" class="btn btn-outline-primary rounded-pill w-100" data-panel-target="#categoriePanel" data-input-target="edit_categorie_id" data-icon="📂" data-original-text="Sélectionner...">📂 Sélectionner...</button>
+                            <input type="hidden" id="edit_categorie_id" name="categorie_id">
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Bénéficiaire</label>
+                            <button type="button" class="btn btn-outline-primary rounded-pill w-100" data-panel-target="#beneficiairePanel" data-input-target="edit_beneficiaire_id" data-icon="👥" data-original-text="Sélectionner...">👥 Sélectionner...</button>
+                            <input type="hidden" id="edit_beneficiaire_id" name="beneficiaire_id">
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Type de paiement</label>
+                            <button type="button" class="btn btn-outline-primary rounded-pill w-100" data-panel-target="#typeDepensePanel" data-input-target="edit_type_depense_id" data-icon="💳" data-original-text="Sélectionner...">💳 Sélectionner...</button>
+                            <input type="hidden" id="edit_type_depense_id" name="type_depense_id">
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="edit_rmq" class="form-label">Remarque</label>
+                            <textarea class="form-control" id="edit_rmq" name="rmq" rows="2" placeholder="Remarque optionnelle..."></textarea>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary rounded-pill" data-bs-dismiss="modal">Annuler</button>
+                    <button type="button" class="btn btn-danger rounded-pill me-2" id="deleteMovementBtn">🗑️ Supprimer</button>
+                    <button type="button" class="btn btn-warning rounded-pill" id="updateMovementBtn">💾 Modifier</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="../assets/js/bootstrap.bundle.min.js"></script>
+    <script src="../js/lib/jszip.min.js"></script>
+    
+    <!-- Core Ratchou Scripts -->
+    <script src="../js/core/utils.js"></script>
+    <script src="../js/core/indexeddb-wrapper.js"></script>
+    <script src="../js/core/models/base-model.js"></script>
+    <script src="../js/core/models/comptes-model.js"></script>
+    <script src="../js/core/models/categories-model.js"></script>
+    <script src="../js/core/models/beneficiaires-model.js"></script>
+    <script src="../js/core/models/type_depenses-model.js"></script>
+    <script src="../js/core/models/mouvements-model.js"></script>
+    <script src="../js/core/models/recurrents-model.js"></script>
+    <script src="../js/core/auth.js"></script>
+    <script src="../js/core/ratchou-app.js"></script>
+
+    <!-- Component System -->
+    <script src="../js/components/component-loader.js"></script>
+
+    <!-- Movements Page Script -->
+    <script src="../js/pages/mouvements.js"></script>
+    
+    <!-- PWA Scripts -->
+    <script src="../js/pwa/install.js"></script>
+    <script src="../js/pwa/persistence.js"></script>
+
+</body>
+</html>

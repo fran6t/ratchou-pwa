@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ratchou - Export des données</title>
+    
+    <!-- PWA Meta Tags -->
+    <meta name="theme-color" content="#667eea">
+    <meta name="description" content="Gestion des dépenses familiales - Ratchou">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="Ratchou">
+    <link rel="apple-touch-icon" href="../assets/icons/icon-192.png">
+    <link rel="manifest" href="../manifest.json">
+    
+    <!-- Stylesheets -->
+    <link href="../assets/css/bootstrap.min.css" rel="stylesheet">
+    <link href="../assets/css/bootstrap-icons.min.css" rel="stylesheet">
+    <link href="../assets/css/app.css" rel="stylesheet">
+    <style>
+        .back-btn {
+            position: absolute;
+            top: 1rem;
+            left: 1rem;
+        }
+    </style>
+</head>
+<body class="bg-light">
+    
+    <!-- Loading Overlay -->
+    <div id="loadingOverlay" class="position-fixed top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center bg-white bg-opacity-75" style="z-index: 9999; display: none !important;">
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Chargement...</span>
+        </div>
+    </div>
+
+    <!-- Navigation sera injectée par le composant header -->
+    
+    <!-- Bouton retour -->
+    <button type="button" class="btn btn-outline-secondary back-btn" onclick="location.replace('../dashboard.html')">
+        ← Retour
+    </button>
+
+    <div class="container mt-4">
+        <!-- Alert Messages -->
+        <div id="alertContainer"></div>
+
+        <div class="row justify-content-center">
+            <div class="col-lg-8">
+                <div class="card shadow-sm">
+                    <div class="card-body" id="exportContent">
+                        <!-- Contenu de la sauvegarde -->
+                        <div class="border rounded p-3 mb-4 bg-light">
+                            <p class="mb-0">Le fichier de sauvegarde contiendra l'intégralité de vos données : comptes, transactions, catégories, bénéficiaires, dépenses récurrentes et configuration.</p>
+                        </div>
+
+                        <!-- Format d'export -->
+                        <div class="mb-4">
+                            <h6><i class="me-2">🎯</i>Format d'export</h6>
+                            <div class="form-check mb-3">
+                                <input class="form-check-input" type="radio" name="exportFormat" id="formatJSON" value="json">
+                                <label class="form-check-label" for="formatJSON">
+                                    <strong>📄 JSON standard (.json)</strong>
+                                    <div class="small text-muted">Format lisible, compatible avec tous les outils</div>
+                                </label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="exportFormat" id="formatZIP" value="zip" checked>
+                                <label class="form-check-label" for="formatZIP">
+                                    <strong>📦 ZIP compressé (.zip)</strong>
+                                    <div class="small text-muted">Plus léger, idéal pour le partage (réduction ~80%)</div>
+                                </label>
+                            </div>
+                        </div>
+
+                        <!-- Options après export -->
+                        <div class="mb-4">
+                            <h6><i class="me-2">📤</i>Que faire après l'export ?</h6>
+                            <div class="form-check mb-3">
+                                <input class="form-check-input" type="radio" name="exportAction" id="actionDownload" value="download" checked>
+                                <label class="form-check-label" for="actionDownload">
+                                    <strong>💾 Télécharger seulement</strong>
+                                    <div class="small text-muted">Enregistrer le fichier dans les téléchargements</div>
+                                </label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="exportAction" id="actionShare" value="share">
+                                <label class="form-check-label" for="actionShare">
+                                    <strong>📱 Télécharger + Partager</strong>
+                                    <div class="small text-muted">Ouvrir les options de partage (Gmail, WhatsApp, etc.)</div>
+                                </label>
+                            </div>
+                        </div>
+
+                        <!-- Barre de progression -->
+                        <div id="exportProgress" class="mb-4" style="display: none;">
+                            <h6><i class="me-2">⏳</i>Export en cours...</h6>
+                            <div class="d-flex align-items-center mb-2">
+                                <div class="spinner-border spinner-border-sm me-2" role="status"></div>
+                                <span id="exportProgressText">Préparation de l'export...</span>
+                            </div>
+                            <div class="progress">
+                                <div class="progress-bar" id="exportProgressBar" role="progressbar" style="width: 0%"></div>
+                            </div>
+                        </div>
+
+                        <!-- Résultat -->
+                        <div id="exportResult" class="mb-4" style="display: none;"></div>
+                    </div>
+                    <div class="card-footer text-end">
+                        <button type="button" class="btn btn-secondary me-2" id="cancelBtn" onclick="location.replace('../dashboard.html')">Annuler</button>
+                        <button type="button" class="btn btn-primary" id="exportBtn">💾 Confirmer et exporter</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="../assets/js/bootstrap.bundle.min.js"></script>
+    <script src="../js/lib/jszip.min.js"></script>
+    
+    <!-- Core Ratchou Scripts -->
+    <script src="../js/core/utils.js"></script>
+    <script src="../js/core/indexeddb-wrapper.js"></script>
+    <script src="../js/core/models/base-model.js"></script>
+    <script src="../js/core/models/comptes-model.js"></script>
+    <script src="../js/core/models/categories-model.js"></script>
+    <script src="../js/core/models/beneficiaires-model.js"></script>
+    <script src="../js/core/models/type_depenses-model.js"></script>
+    <script src="../js/core/models/mouvements-model.js"></script>
+    <script src="../js/core/models/recurrents-model.js"></script>
+    <script src="../js/core/auth.js"></script>
+    <script src="../js/core/ratchou-app.js"></script>
+    
+    <!-- Component System -->
+    <script src="../js/components/component-loader.js"></script>
+
+    <!-- Export Page Script -->
+    <script src="../js/pages/export.js"></script>
+    
+    <!-- Export Success Modal -->
+    <div class="modal fade" id="exportSuccessModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header bg-success text-white">
+                    <h5 class="modal-title">✅ Export réussi</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+            
+                    <div class="card border-info mb-4">
+                        <div class="card-header bg-info text-white">
+                            <h6 class="mb-0"><i class="me-2">💾</i>Où trouver votre sauvegarde</h6>
+                        </div>
+                        <div class="card-body">
+                            <p class="card-text">Le fichier a été enregistré dans votre dossier de téléchargements habituel. Vous pouvez maintenant :</p>
+                            <ul class="mb-0">
+                                <li>Le conserver comme sauvegarde de sécurité</li>
+                                <li>Le transférer sur un autre appareil pour importer vos données</li>
+                            </ul>
+                        </div>
+                    </div>
+                    
+                    <!-- Sharing Options (will be shown conditionally) -->
+                    <div id="sharingOptions" class="card border-warning" style="display: none;">
+                        <div class="card-header bg-warning text-dark">
+                            <h6 class="mb-0"><i class="me-2">📱</i>Options de partage</h6>
+                        </div>
+                        <div class="card-body">
+                            <p class="card-text small mb-3">Choisissez comment partager votre fichier :</p>
+                            <div class="d-grid gap-2">
+                                <button type="button" class="btn btn-outline-primary btn-sm" id="shareViaGmailBtn">
+                                    📧 Partager par Gmail
+                                </button>
+                                <button type="button" class="btn btn-outline-success btn-sm" id="shareViaWhatsAppBtn">
+                                    💬 Partager par WhatsApp
+                                </button>
+                                <button type="button" class="btn btn-outline-info btn-sm" id="copyInstructionsBtn">
+                                    📋 Copier les instructions d'import
+                                </button>
+                            </div>
+                            <div id="copySuccess" class="alert alert-success mt-3 small" style="display: none;">
+                                ✅ Instructions copiées ! Vous pouvez maintenant les coller dans un message.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-success" id="exportSuccessBtn" data-bs-dismiss="modal">Parfait ! 👍</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- PWA Scripts -->
+    <script src="../js/pwa/install.js"></script>
+    <script src="../js/pwa/persistence.js"></script>
+</body>
+</html>

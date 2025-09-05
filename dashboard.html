@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ratchou - Tableau de bord</title>
+    
+    <!-- PWA Meta Tags -->
+    <meta name="theme-color" content="#667eea">
+    <meta name="description" content="Tableau de bord de gestion des dépenses familiales Ratchou">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="Ratchou">
+    <link rel="apple-touch-icon" href="assets/icons/icon-192.png">
+    <link rel="manifest" href="manifest.json">
+    
+    <!-- Stylesheets -->
+    <link href="assets/css/bootstrap.min.css" rel="stylesheet">
+    <link href="assets/css/bootstrap-icons.min.css" rel="stylesheet">
+    <link href="assets/css/app.css" rel="stylesheet">
+</head>
+<body class="bg-light">
+
+    <!-- Loading Overlay -->
+    <div id="loadingOverlay" class="loading-overlay">
+        <div class="loading-content">
+            <div class="spinner-border text-primary mb-3" role="status">
+                <span class="visually-hidden">Chargement...</span>
+            </div>
+            <div id="loadingMessage">Chargement...</div>
+        </div>
+    </div>
+
+    <!-- Navigation sera injectée par le composant header -->
+
+    <div class="container-fluid mt-4">
+        <div class="card shadow-sm mb-4">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-lightning-charge-fill text-warning"></i> Saisie rapide</h5>
+            </div>
+            <div class="card-body">
+                <form id="movementForm">
+                    <div class="input-group mb-2">
+                        <span class="input-group-text">Montant</span>
+                        <input type="number" step="0.01" class="form-control" id="montant" name="montant" required>
+                        <button type="submit" form="movementForm" class="btn btn-primary btn-sm rounded-pill ms-2" id="submitBtn" title="Enregistrer">💾 Enregistrer</button>
+                    </div>
+                    <div class="form-text mb-3 d-block">Positif = recette, Négatif = dépense</div>
+                    <div class="d-flex flex-wrap gap-2 mb-3">
+                        <button type="button" class="btn btn-outline-primary btn-sm rounded-pill" data-panel-target="#categoriePanel" data-input-target="categorie_id" data-icon="📂" data-original-text="Catégorie">📂 Catégorie</button>
+                        <button type="button" class="btn btn-outline-primary btn-sm rounded-pill" data-panel-target="#beneficiairePanel" data-input-target="beneficiaire_id" data-icon="👥" data-original-text="Bénéficiaire">👥 Bénéficiaire</button>
+                        <button type="button" class="btn btn-outline-primary btn-sm rounded-pill" data-panel-target="#typeDepensePanel" data-input-target="type_depense_id" data-icon="💳" data-original-text="Type">💳 Type</button>
+                        <button type="button" class="btn btn-outline-primary btn-sm rounded-pill" data-bs-toggle="modal" data-bs-target="#remarqueModal">📝 Remarque</button>
+                        <button type="button" class="btn btn-outline-primary btn-sm rounded-pill" id="resetFormBtn" title="Annuler">
+                            <i class="bi bi-x-circle-fill text-danger"></i>
+                        </button>
+                        <button type="button" class="btn btn-outline-info btn-sm rounded-pill" id="testTooltipsBtn" title="Tester les tooltips">
+                            🧪 Test Tips
+                        </button>
+                    </div>
+                    <div id="duplicate-transaction-wrapper" class="form-check mb-3" style="display: none;">
+                        <input class="form-check-input" type="checkbox" id="duplicate-transaction">
+                        <label class="form-check-label" for="duplicate-transaction">
+                            Copier vers le compte principal
+                        </label>
+                    </div>
+                    <input type="hidden" id="compte_id" name="compte_id">
+                    <input type="hidden" id="categorie_id" name="categorie_id">
+                    <input type="hidden" id="beneficiaire_id" name="beneficiaire_id">
+                    <input type="hidden" id="type_depense_id" name="type_depense_id">
+                    <input type="hidden" id="rmq" name="rmq">
+                </form>
+            </div>
+        </div>
+
+        <div class="card shadow-sm">
+            <div class="card-header">Derniers mouvements</div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <tbody id="transactionsTableBody">
+                            <tr>
+                                <td colspan="2" class="text-center p-4">
+                                    <div class="spinner-border text-primary" role="status">
+                                        <span class="visually-hidden">Chargement...</span>
+                                    </div>
+                                    <div class="mt-2">Chargement des mouvements...</div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Sidebar sera injecté par le composant sidebar -->
+
+    <!-- Account Selection Modal -->
+    <div class="modal fade" id="accountSelectModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">🏦 Sélectionner un compte</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="accountsList">
+                        <div class="text-center p-3">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Chargement...</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Balance Correction Modal -->
+    <div class="modal fade" id="balanceModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">💰 Corriger le solde</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="balanceForm">
+                        <div class="mb-3">
+                            <label for="newBalance" class="form-label">Nouveau solde (€)</label>
+                            <input type="number" class="form-control" id="newBalance" step="0.01" required>
+                            <div class="form-text">Solde actuel: <span id="currentBalance">0,00 €</span></div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary rounded-pill" data-bs-dismiss="modal">Annuler</button>
+                    <button type="button" class="btn btn-primary rounded-pill" id="updateBalanceBtn">Corriger</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modales communes seront injectées par le composant modals -->
+
+    <!-- Remarque Modal -->
+    <div class="modal fade" id="remarqueModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">📝 Remarque</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <textarea class="form-control" id="remarqueText" rows="3" placeholder="Remarque optionnelle..."></textarea>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary rounded-pill" data-bs-dismiss="modal">Annuler</button>
+                    <button type="button" class="btn btn-primary rounded-pill" id="saveRemarque">💾 Enregistrer</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Panel Backdrop -->
+    <div class="panel-backdrop" id="panelBackdrop"></div>
+
+    <!-- Selection Panels -->
+    <div class="panel-slide" id="categoriePanel">
+        <div class="panel-content">
+            <div class="panel-header">
+                <h5>📂 Catégories</h5>
+                <div class="d-flex align-items-center">
+                    <button class="btn btn-add" onclick="dashboardController.openAddCategoryModal()" title="Ajouter une catégorie">
+                        + Ajouter
+                    </button>
+                    <button class="btn-close-panel" onclick="closePanels()" title="Fermer"></button>
+                </div>
+            </div>
+            <div class="filter-section">
+                <div class="d-flex align-items-center gap-2">
+                    <input type="text" class="form-control form-control-sm" id="categorieFilter" placeholder="Filtrer les catégories...">
+                    <button class="btn btn-outline-secondary btn-sm" type="button" id="categoriesSortToggleBtn" title="Basculer le tri"><i class="bi bi-sort-alpha-down"></i></button>
+                </div>
+            </div>
+            <div class="panel-body">
+                <div class="list-group" id="categorieList">
+                    <div class="text-center p-3">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Chargement...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="panel-slide" id="beneficiairePanel">
+        <div class="panel-content">
+            <div class="panel-header">
+                <h5>👥 Bénéficiaires</h5>
+                <div class="d-flex align-items-center">
+                    <button class="btn btn-add" onclick="dashboardController.openAddPayeeModal()" title="Ajouter un bénéficiaire">
+                        + Ajouter
+                    </button>
+                    <button class="btn-close-panel" onclick="closePanels()" title="Fermer"></button>
+                </div>
+            </div>
+            <div class="filter-section">
+                <div class="d-flex align-items-center gap-2">
+                    <input type="text" class="form-control form-control-sm" id="beneficiaireFilter" placeholder="Filtrer les bénéficiaires...">
+                    <button class="btn btn-outline-secondary btn-sm" type="button" id="payeesSortToggleBtn" title="Basculer le tri"><i class="bi bi-sort-alpha-down"></i></button>
+                </div>
+            </div>
+            <div class="panel-body">
+                <div class="list-group" id="beneficiaireList">
+                    <div class="text-center p-3">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Chargement...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="panel-slide" id="typeDepensePanel">
+        <div class="panel-header">
+            <h5>💳 Types de paiement</h5>
+            <button class="btn-close-panel" onclick="closePanels()" title="Fermer"></button>
+        </div>
+        <div class="p-3">
+            <div class="list-group" id="typeDepenseList">
+                <div class="text-center p-3">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Chargement...</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Movement Modal -->
+    <div class="modal fade" id="editMovementModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">✏️ Modifier le mouvement</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="editMovementForm">
+                        <input type="hidden" id="edit_movement_id" name="movement_id">
+                        
+                        <div class="input-group mb-3">
+                            <span class="input-group-text">Montant</span>
+                            <input type="number" step="0.01" class="form-control" id="edit_montant" name="montant" required>
+                            <span class="input-group-text">€</span>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Catégorie</label>
+                            <button type="button" class="btn btn-outline-primary rounded-pill w-100" data-panel-target="#categoriePanel" data-input-target="edit_categorie_id" data-icon="📂" data-original-text="Sélectionner...">📂 Sélectionner...</button>
+                            <input type="hidden" id="edit_categorie_id" name="categorie_id">
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Bénéficiaire</label>
+                            <button type="button" class="btn btn-outline-primary rounded-pill w-100" data-panel-target="#beneficiairePanel" data-input-target="edit_beneficiaire_id" data-icon="👥" data-original-text="Sélectionner...">👥 Sélectionner...</button>
+                            <input type="hidden" id="edit_beneficiaire_id" name="beneficiaire_id">
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Type de paiement</label>
+                            <button type="button" class="btn btn-outline-primary rounded-pill w-100" data-panel-target="#typeDepensePanel" data-input-target="edit_type_depense_id" data-icon="💳" data-original-text="Sélectionner...">💳 Sélectionner...</button>
+                            <input type="hidden" id="edit_type_depense_id" name="type_depense_id">
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="edit_rmq" class="form-label">Remarque</label>
+                            <textarea class="form-control" id="edit_rmq" name="rmq" rows="2" placeholder="Remarque optionnelle..."></textarea>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-info me-auto rounded-pill" id="duplicateToMainBtn" style="display: none;">Dupliquer au compte principal</button>
+                    <button type="button" class="btn btn-secondary rounded-pill" data-bs-dismiss="modal">Annuler</button>
+                    <button type="button" class="btn btn-danger me-2 rounded-pill" id="deleteMovementBtn">Supprimer</button>
+                    <button type="button" class="btn btn-primary rounded-pill" id="updateMovementBtn">💾 Enregistrer</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Add Category Modal -->
+    <div class="modal fade" id="addCategoryModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">📂 Ajouter une catégorie</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="addCategoryForm">
+                        <div class="mb-3">
+                            <label for="newCategoryName" class="form-label">Nom de la catégorie</label>
+                            <input type="text" class="form-control" id="newCategoryName" required placeholder="Ex: Restaurant, Transport...">
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="newCategoryMandatory">
+                            <label class="form-check-label" for="newCategoryMandatory">
+                                Catégorie obligatoire
+                            </label>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary rounded-pill" data-bs-dismiss="modal">Annuler</button>
+                    <button type="button" class="btn btn-primary rounded-pill" id="saveCategoryBtn">💾 Ajouter</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Add Payee Modal -->
+    <div class="modal fade" id="addPayeeModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">👥 Ajouter un bénéficiaire</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="addPayeeForm">
+                        <div class="mb-3">
+                            <label for="newPayeeName" class="form-label">Nom du bénéficiaire</label>
+                            <input type="text" class="form-control" id="newPayeeName" required placeholder="Ex: Carrefour, EDF, Jean Dupont...">
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary rounded-pill" data-bs-dismiss="modal">Annuler</button>
+                    <button type="button" class="btn btn-primary rounded-pill" id="savePayeeBtn">💾 Ajouter</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Timeline Modal -->
+    <div class="modal fade" id="timelineModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">📅 Projection financière</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <!-- Period Selection -->
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Période de projection :</label>
+                        <div class="d-flex gap-3 flex-wrap">
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="projectionPeriod" id="period7" value="7" checked>
+                                <label class="form-check-label" for="period7">7 jours</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="projectionPeriod" id="period14" value="14">
+                                <label class="form-check-label" for="period14">14 jours</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="projectionPeriod" id="period21" value="21">
+                                <label class="form-check-label" for="period21">21 jours</label>
+                            </div>
+                        </div>
+                    </div>
+                    <hr>
+                    
+                    <div id="timelineContent">
+                        <div class="text-center p-4">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Chargement...</span>
+                            </div>
+                            <div class="mt-2">Calcul de la projection...</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="assets/js/bootstrap.bundle.min.js"></script>
+    <script src="js/lib/jszip.min.js"></script>
+    
+    <!-- Core Ratchou Scripts -->
+    <script src="js/core/utils.js"></script>
+    <script src="js/core/indexeddb-wrapper.js"></script>
+    <script src="js/core/models/base-model.js"></script>
+    <script src="js/core/models/comptes-model.js"></script>
+    <script src="js/core/models/categories-model.js"></script>
+    <script src="js/core/models/beneficiaires-model.js"></script>
+    <script src="js/core/models/type_depenses-model.js"></script>
+    <script src="js/core/models/mouvements-model.js"></script>
+    <script src="js/core/models/recurrents-model.js"></script>
+    <script src="js/core/auth.js"></script>
+    <script src="js/core/ratchou-app.js"></script>
+    
+    <!-- Components -->
+    <script src="js/components/backup-reminder.js"></script>
+    <script src="js/components/component-loader.js"></script>
+
+    <!-- Dashboard Page Script -->
+    <script src="js/pages/dashboard.js"></script>
+    
+    <!-- PWA Scripts -->
+    <script src="js/pwa/install.js"></script>
+    <script src="js/pwa/persistence.js"></script>
+
+</body>
+</html>

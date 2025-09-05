@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ratchou - Projection financière</title>
+    
+    <!-- PWA Meta Tags -->
+    <meta name="theme-color" content="#667eea">
+    <meta name="description" content="Gestion des dépenses familiales - Ratchou">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="Ratchou">
+    <link rel="apple-touch-icon" href="../assets/icons/icon-192.png">
+    <link rel="manifest" href="../manifest.json">
+    
+    <!-- Stylesheets -->
+    <link href="../assets/css/bootstrap.min.css" rel="stylesheet">
+    <link href="../assets/css/bootstrap-icons.min.css" rel="stylesheet">
+    <link href="../assets/css/app.css" rel="stylesheet">
+</head>
+<body class="bg-light">
+    
+    <!-- Loading Overlay -->
+    <div id="loadingOverlay" class="loading-overlay">
+        <div class="loading-content">
+            <div class="spinner-border text-primary mb-3" role="status">
+                <span class="visually-hidden">Chargement...</span>
+            </div>
+            <div id="loadingMessage">Chargement...</div>
+        </div>
+    </div>
+
+    <!-- Navigation sera injectée par le composant header -->
+
+    <div class="container mt-4">
+        <div class="card shadow-sm">
+            <div class="card-header">
+                <h5 class="mb-0">📅 Projection financière</h5>
+            </div>
+            <div class="card-body">
+                <!-- Period Selection -->
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Période de projection :</label>
+                    <div class="d-flex gap-3 flex-wrap">
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="projectionPeriod" id="period7" value="7" checked>
+                            <label class="form-check-label" for="period7">7 jours</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="projectionPeriod" id="period14" value="14">
+                            <label class="form-check-label" for="period14">14 jours</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="projectionPeriod" id="period21" value="21">
+                            <label class="form-check-label" for="period21">21 jours</label>
+                        </div>
+                    </div>
+                </div>
+                <hr>
+                
+                <div id="projectionContent">
+                    <div class="text-center p-4">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Chargement...</span>
+                        </div>
+                        <div class="mt-2">Calcul de la projection...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Sidebar sera injecté par le composant sidebar -->
+
+    <!-- Account Selection Modal -->
+    <div class="modal fade" id="accountSelectModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">🏦 Sélectionner un compte</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="accountsList">
+                        <div class="text-center p-3">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Chargement...</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Balance Correction Modal -->
+    <div class="modal fade" id="balanceModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">💰 Corriger le solde</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="balanceForm">
+                        <div class="mb-3">
+                            <label for="newBalance" class="form-label">Nouveau solde (€)</label>
+                            <input type="number" class="form-control" id="newBalance" step="0.01" required>
+                            <div class="form-text">Solde actuel: <span id="currentBalance">0,00 €</span></div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                    <button type="button" class="btn btn-primary" id="updateBalanceBtn">Corriger</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="../assets/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- Core Ratchou Scripts -->
+    <script src="../js/core/utils.js"></script>
+    <script src="../js/core/indexeddb-wrapper.js"></script>
+    <script src="../js/core/models/base-model.js"></script>
+    <script src="../js/core/models/comptes-model.js"></script>
+    <script src="../js/core/models/categories-model.js"></script>
+    <script src="../js/core/models/beneficiaires-model.js"></script>
+    <script src="../js/core/models/type_depenses-model.js"></script>
+    <script src="../js/core/models/mouvements-model.js"></script>
+    <script src="../js/core/models/recurrents-model.js"></script>
+    <script src="../js/core/auth.js"></script>
+    <script src="../js/core/ratchou-app.js"></script>
+
+    <!-- Component System -->
+    <script src="../js/components/component-loader.js"></script>
+
+    <!-- Projection Page Script -->
+    <script src="../js/pages/projection.js"></script>
+
+    
+    <!-- PWA Scripts -->
+    <script src="../js/pwa/install.js"></script>
+    <script src="../js/pwa/persistence.js"></script>
+</body>
+</html>

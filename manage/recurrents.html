@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ratchou - Dépenses fixes</title>
+    
+    <!-- PWA Meta Tags -->
+    <meta name="theme-color" content="#667eea">
+    <meta name="description" content="Gestion des dépenses familiales - Ratchou">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="Ratchou">
+    <link rel="apple-touch-icon" href="../assets/icons/icon-192.png">
+    <link rel="manifest" href="../manifest.json">
+    
+    <!-- Stylesheets -->
+    <link href="../assets/css/bootstrap.min.css" rel="stylesheet">
+    <link href="../assets/css/bootstrap-icons.min.css" rel="stylesheet">
+    <link href="../assets/css/app.css" rel="stylesheet">
+</head>
+<body class="bg-light">
+    <div id="loadingOverlay" class="position-fixed top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center bg-white bg-opacity-75" style="z-index: 9999; display: none !important;">
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Chargement...</span>
+        </div>
+    </div>
+
+    <div class="container mt-4">
+        <div id="alertContainer"></div>
+
+        <div id="main-content">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">🔄 Dépenses ou rentrées répétitives</h5>
+                    <button class="btn btn-primary btn-sm rounded-pill ms-1" id="add-recurrent-btn">
+                        Ajouter
+                    </button>
+                </div>
+                <div class="card-body">
+                    <div class="accordion mb-4" id="summaryAccordion">
+                        <div class="accordion-item">
+                            <h2 class="accordion-header">
+                                <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#collapseSummary" aria-expanded="true" aria-controls="collapseSummary">
+                                    📊 Résumé des totaux mensuels
+                                </button>
+                            </h2>
+                            <div id="collapseSummary" class="accordion-collapse collapse show" data-bs-parent="#summaryAccordion">
+                                <div class="accordion-body" id="totals">
+                                    <!-- Summary cards will be injected here -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="recurrents-list">
+                        <!-- Recurring expenses list will be injected here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="form-container" class="card shadow-sm mb-4" style="display: none;">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0" id="form-title">Ajout d'une récurrence</h5>
+                <div>
+                    <button type="button" class="btn btn-secondary" id="cancel-btn">Annuler</button>
+                    <button type="button" class="btn btn-danger me-2" id="delete-recurrent-btn" style="display: none;">🗑️ Supprimer</button>
+                    <button type="submit" form="recurrent-form" class="btn btn-primary">💾 Enregistrer</button>
+                </div>
+            </div>
+            <div class="card-body">
+                <form id="recurrent-form">
+                    <!-- Form content will be injected by JS -->
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Panel Backdrop -->
+    <div class="panel-backdrop" id="panelBackdrop"></div>
+
+    <!-- Selection Panels -->
+    <div class="panel-slide" id="categoriePanel"></div>
+    <div class="panel-slide" id="beneficiairePanel"></div>
+    <div class="panel-slide" id="typeDepensePanel"></div>
+
+    <!-- Modals -->
+    <div class="modal fade" id="addCategoryModal" tabindex="-1"></div>
+    <div class="modal fade" id="addPayeeModal" tabindex="-1"></div>
+    <div class="modal fade" id="deleteModal" tabindex="-1"></div>
+
+
+    <script src="../assets/js/bootstrap.bundle.min.js"></script>
+    <script src="../js/lib/jszip.min.js"></script>
+    <script src="../js/core/utils.js"></script>
+    <script src="../js/core/indexeddb-wrapper.js"></script>
+    <script src="../js/core/models/base-model.js"></script>
+    <script src="../js/core/models/comptes-model.js"></script>
+    <script src="../js/core/models/categories-model.js"></script>
+    <script src="../js/core/models/beneficiaires-model.js"></script>
+    <script src="../js/core/models/type_depenses-model.js"></script>
+    <script src="../js/core/models/mouvements-model.js"></script>
+    <script src="../js/core/models/recurrents-model.js"></script>
+    <script src="../js/core/auth.js"></script>
+    <script src="../js/core/ratchou-app.js"></script>
+    <script src="../js/components/component-loader.js"></script>
+    <script src="../js/pages/recurrents.js"></script>
+    <script src="../js/pwa/install.js"></script>
+    <script src="../js/pwa/persistence.js"></script>
+</body>
+</html>

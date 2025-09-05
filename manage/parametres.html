@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ratchou - Paramètres</title>
+    
+    <!-- PWA Meta Tags -->
+    <meta name="theme-color" content="#667eea">
+    <meta name="description" content="Gestion des dépenses familiales - Ratchou">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="Ratchou">
+    <link rel="apple-touch-icon" href="../assets/icons/icon-192.png">
+    <link rel="manifest" href="../manifest.json">
+    
+    <!-- Stylesheets -->
+    <link href="../assets/css/bootstrap.min.css" rel="stylesheet">
+    <link href="../assets/css/bootstrap-icons.min.css" rel="stylesheet">
+    <link href="../assets/css/app.css" rel="stylesheet">
+    <style>
+        .params-section {
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 2rem;
+            padding: 1.5rem;
+        }
+        .params-section h4 {
+            border-bottom: 2px solid #f8f9fa;
+            padding-bottom: 0.5rem;
+            margin-bottom: 1rem;
+        }
+        .tech-badges {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            margin-top: 1rem;
+        }
+        .section-icon {
+            font-size: 1.2rem;
+            margin-right: 0.5rem;
+        }
+        .feature-list, .privacy-list {
+            list-style: none;
+            padding-left: 1rem;
+        }
+        .feature-list li, .privacy-list li {
+            margin-bottom: 0.5rem;
+            position: relative;
+        }
+        .feature-list li::before {
+            content: '•';
+            color: #007bff;
+            font-weight: bold;
+            position: absolute;
+            left: -1rem;
+        }
+        .privacy-list li::before {
+            content: '✓';
+            color: #28a745;
+            font-weight: bold;
+            position: absolute;
+            left: -1rem;
+        }
+        
+        /* Section separator styles */
+        .section-separator {
+            position: relative;
+            margin: 2rem 0;
+        }
+        
+        .section-separator hr {
+            border-top: 2px solid #dee2e6;
+            margin: 0;
+        }
+        
+        .section-separator .separator-label {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: #f8f9fa;
+            padding: 0.5rem 1rem;
+            border-radius: 15px;
+            font-weight: 600;
+            color: #6c757d;
+            border: 1px solid #dee2e6;
+        }
+
+        </style>
+</head>
+<body class="bg-light">
+    
+    <!-- Loading Overlay -->
+    <div id="loadingOverlay" class="position-fixed top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center bg-white bg-opacity-75" style="z-index: 9999; display: none !important;">
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Chargement...</span>
+        </div>
+    </div>
+
+    <!-- Navigation sera injectée par le composant header -->
+
+    <div class="container mt-4">
+        <!-- Alert Messages -->
+        <div id="alertContainer"></div>
+
+
+        <!-- Accordions Section -->
+        <div class="accordion" id="parametersAccordion">
+            
+            <!-- Security Accordion -->
+            <div class="accordion-item" id="security-accordion">
+                <h2 class="accordion-header">
+                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-security">
+                        🔐 Sécurité - Changer le code d'accès
+                    </button>
+                </h2>
+                <div id="collapse-security" class="accordion-collapse collapse" data-bs-parent="#parametersAccordion">
+                    <div class="accordion-body">
+                        <p>Modifiez votre code d'accès à 4 chiffres pour sécuriser l'application.</p>
+                        <p class="text-muted small">Les détails et avertissements vous seront présentés avant la confirmation finale.</p>
+                        <div class="text-center mt-3">
+                            <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#accessCodeModal">
+                                🔐 Changer le code d'accès
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Backup Accordion -->
+            <div class="accordion-item" id="backup-accordion">
+                <h2 class="accordion-header">
+                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-backup">
+                        📤 Sauvegarde - Export des données
+                    </button>
+                </h2>
+                <div id="collapse-backup" class="accordion-collapse collapse" data-bs-parent="#parametersAccordion">
+                    <div class="accordion-body">
+                        <p>Sauvegardez l'ensemble de vos données dans un fichier sécurisé au format JSON.</p>
+                        <p class="text-muted small">Les détails sur le contenu de la sauvegarde vous seront présentés avant la confirmation finale.</p>
+                        <div class="text-center mt-3">
+                            <a href="export.html" class="btn btn-success">
+                                📤 Exporter les données
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Uninstall Accordion -->
+            <div class="accordion-item" id="uninstall-accordion">
+                <h2 class="accordion-header">
+                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-uninstall">
+                        🗑️ Désinstallation - Réinitialisation complète
+                    </button>
+                </h2>
+                <div id="collapse-uninstall" class="accordion-collapse collapse" data-bs-parent="#parametersAccordion">
+                    <div class="accordion-body">
+                        <p>Supprimez <strong>définitivement et complètement</strong> toutes les données de Ratchou de cet appareil.</p>
+                        <p class="text-danger fw-bold">Cette action est irréversible.</p>
+                        <p class="text-muted small">Une double confirmation vous sera demandée pour éviter toute suppression accidentelle.</p>
+                        <div class="text-center mt-3">
+                            <button type="button" class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#uninstallModal">
+                                🗑️ Procéder à la désinstallation
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Separator between Actions and Information -->
+        <div class="section-separator">
+            <hr>
+            <div class="separator-label">
+                📖 Informations
+            </div>
+        </div>
+
+        <!-- Information Accordions -->
+        <div class="accordion" id="informationAccordion">
+
+            <!-- About Accordion -->
+            <div class="accordion-item" id="about-accordion">
+                <h2 class="accordion-header">
+                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-about">
+                        📖 À propos de Ratchou
+                    </button>
+                </h2>
+                <div id="collapse-about" class="accordion-collapse collapse" data-bs-parent="#informationAccordion">
+                    <div class="accordion-body">
+                        <div class="text-center mb-4">
+                            <h5>Ratchou v2.0</h5>
+                            <p class="text-muted">Gestion familiale des dépenses - Version IndexedDB</p>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6">
+                                <h6>🎯 Fonctionnalités principales</h6>
+                                <ul class="feature-list">
+                                    <li>Gestion multi-comptes</li>
+                                    <li>Suivi des mouvements</li>
+                                    <li>Catégorisation flexible</li>
+                                    <li>Dépenses fixes récurrentes</li>
+                                    <li>Projection financière</li>
+                                    <li>Export/Import des données</li>
+                                </ul>
+                            </div>
+                            <div class="col-md-6">
+                                <h6>🛡️ Confidentialité</h6>
+                                <ul class="privacy-list">
+                                    <li>100% offline</li>
+                                    <li>Données stockées localement</li>
+                                    <li>Aucune transmission externe</li>
+                                    <li>Code d'accès sécurisé</li>
+                                    <li>Pas de cookies externes</li>
+                                    <li>Pas de tracking</li>
+                                </ul>
+                            </div>
+                        </div>
+                        
+                        <div class="mt-4">
+                            <h6>💾 Technologie</h6>
+                            <p class="text-muted mb-2">
+                                Cette version utilise IndexedDB pour un stockage local performant et une utilisation 
+                                100% offline. Toutes vos données restent privées sur votre appareil.
+                            </p>
+                            <div class="tech-badges">
+                                <span class="badge bg-secondary">HTML5</span>
+                                <span class="badge bg-secondary">JavaScript ES6+</span>
+                                <span class="badge bg-secondary">IndexedDB</span>
+                                <span class="badge bg-secondary">Bootstrap 5</span>
+                                <span class="badge bg-success">Offline First</span>
+                                <span class="badge bg-primary">PWA Ready</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Legal Accordion -->
+            <div class="accordion-item" id="legal-accordion">
+                <h2 class="accordion-header">
+                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-legal">
+                        ⚖️ Mentions légales
+                    </button>
+                </h2>
+                <div id="collapse-legal" class="accordion-collapse collapse" data-bs-parent="#informationAccordion">
+                    <div class="accordion-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <h6>📱 Application</h6>
+                                <p><strong>Ratchou</strong> - Gestion familiale des dépenses</p>
+                                <p>Version 2.0 - IndexedDB Edition</p>
+                                
+                                <h6 class="mt-4">🛡️ Données et confidentialité</h6>
+                                <p>Cette application fonctionne entièrement en local :</p>
+                                <ul>
+                                    <li>Aucune donnée personnelle n'est collectée</li>
+                                    <li>Aucune transmission de données vers des serveurs externes</li>
+                                    <li>Le stockage s'effectue uniquement dans IndexedDB (local au navigateur)</li>
+                                    <li>Aucun cookie de tracking ou de publicité</li>
+                                    <li>Aucune dépendance externe (CDN, API tierces)</li>
+                                </ul>
+                            </div>
+                            
+                            <div class="col-md-6">
+                                <h6>⚖️ Responsabilités</h6>
+                                <p>L'utilisateur est responsable de :</p>
+                                <ul>
+                                    <li>La sauvegarde de ses données via la fonction d'export</li>
+                                    <li>La sécurité de son code d'accès</li>
+                                    <li>L'exactitude des données saisies</li>
+                                </ul>
+                                
+                                <h6 class="mt-4">🔧 Support technique</h6>
+                                <p>
+                                    Cette application est fournie en l'état. Pour toute question technique,
+                                    consultez la documentation ou le site web du projet.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Privacy Accordion -->
+            <div class="accordion-item" id="privacy-accordion">
+                <h2 class="accordion-header">
+                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-privacy">
+                        🔒 Politique de confidentialité
+                    </button>
+                </h2>
+                <div id="collapse-privacy" class="accordion-collapse collapse" data-bs-parent="#informationAccordion">
+                    <div class="accordion-body">
+                        <div class="custom-box custom-box-success">
+                            <h6 class="alert-heading">🛡️ Confidentialité maximale</h6>
+                            <p class="mb-0">
+                                Ratchou a été conçu avec la confidentialité comme priorité absolue. 
+                                Vos données financières ne quittent jamais votre appareil.
+                            </p>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6">
+                                <h6>📊 Collecte de données</h6>
+                                <p><strong>Aucune donnée n'est collectée</strong> par cette application :</p>
+                                <ul>
+                                    <li>Pas de télémétrie</li>
+                                    <li>Pas d'analytics</li>
+                                    <li>Pas de tracking utilisateur</li>
+                                    <li>Pas de cookies de suivi</li>
+                                    <li>Pas de données transmises à des tiers</li>
+                                </ul>
+                                
+                                <h6 class="mt-4">💾 Stockage des données</h6>
+                                <p>Toutes vos données sont stockées localement :</p>
+                                <ul>
+                                    <li><strong>IndexedDB</strong> : Base de données locale du navigateur</li>
+                                    <li><strong>Chiffrement</strong> : Code d'accès haché localement</li>
+                                    <li><strong>Isolation</strong> : Données isolées par domaine</li>
+                                    <li><strong>Contrôle</strong> : Vous pouvez supprimer toutes les données</li>
+                                </ul>
+                            </div>
+                            
+                            <div class="col-md-6">
+                                <h6>🌐 Fonctionnement hors ligne</h6>
+                                <p>
+                                    L'application fonctionne entièrement sans connexion internet après 
+                                    le premier chargement. Aucune requête réseau n'est effectuée pendant 
+                                    l'utilisation normale.
+                                </p>
+                                
+                                <h6 class="mt-4">🔐 Sécurité</h6>
+                                <ul>
+                                    <li>Code d'accès à 4 chiffres (non transmis)</li>
+                                    <li>Sessions locales uniquement</li>
+                                    <li>Pas de vulnérabilité réseau (offline)</li>
+                                    <li>Code source transparent</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Resources Accordion -->
+            <div class="accordion-item" id="resources-accordion">
+                <h2 class="accordion-header">
+                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-resources">
+                        🌐 Ressources et liens
+                    </button>
+                </h2>
+                <div id="collapse-resources" class="accordion-collapse collapse" data-bs-parent="#informationAccordion">
+                    <div class="accordion-body">
+                        <div class="row">
+                            <div class="col-md-4">
+                                <div class="card h-100">
+                                    <div class="card-body text-center">
+                                        <h5 class="card-title">🌍 Site explicatif</h5>
+                                        <p class="card-text">Découvrez Ratchou et ses fonctionnalités sur le site officiel.</p>
+                                        <button class="btn btn-outline-primary" id="websiteBtn">
+                                            Visiter le site
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="col-md-4">
+                                <div class="card h-100">
+                                    <div class="card-body text-center">
+                                        <h5 class="card-title">❓ Documentation</h5>
+                                        <p class="card-text">Consultez l'aide et les guides d'utilisation.</p>
+                                        <button class="btn btn-outline-info" id="helpBtn">
+                                            Voir l'aide
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="col-md-4">
+                                <div class="card h-100">
+                                    <div class="card-body text-center">
+                                        <h5 class="card-title">⭐ Recommander</h5>
+                                        <p class="card-text">Partager Ratchou avec vos proches.</p>
+                                        <button class="btn btn-outline-success" id="shareBtn">
+                                            Partager l'app
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Modales seront injectées par le composant modals -->
+
+    <!-- Sidebar sera injecté par le composant sidebar -->
+
+    <script src="../assets/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- Core Ratchou Scripts -->
+    <script src="../js/core/utils.js"></script>
+    <script src="../js/core/indexeddb-wrapper.js"></script>
+    <script src="../js/core/models/base-model.js"></script>
+    <script src="../js/core/models/comptes-model.js"></script>
+    <script src="../js/core/models/categories-model.js"></script>
+    <script src="../js/core/models/beneficiaires-model.js"></script>
+    <script src="../js/core/models/type_depenses-model.js"></script>
+    <script src="../js/core/models/mouvements-model.js"></script>
+    <script src="../js/core/models/recurrents-model.js"></script>
+    <script src="../js/core/auth.js"></script>
+    <script src="../js/core/ratchou-app.js"></script>
+    
+    <!-- Component System -->
+    <script src="../js/components/component-loader.js"></script>
+
+    <!-- Settings Page Script -->
+    <script src="../js/pages/parametres.js"></script>
+    
+    <!-- PWA Scripts -->
+    <script src="../js/pwa/install.js"></script>
+    <script src="../js/pwa/persistence.js"></script>
+</body>
+</html>

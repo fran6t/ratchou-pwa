@@ -1,0 +1,9 @@
+Ratchou Logo Palette (Bootstrap-friendly)
+outline: #212529 (Bootstrap dark)
+squirrel: #fd7e14 (Bootstrap orange)
+acorn-body: #20c997 (Bootstrap teal)
+acorn-cap: #0aa17f (darker teal)
+highlight/shine: #0d6efd (Bootstrap primary)
+
+Suggested backgrounds: #f8f9fa (light), white, or a very pale teal #e6fffb.
+For success states, you can tint the currency symbol with #198754.

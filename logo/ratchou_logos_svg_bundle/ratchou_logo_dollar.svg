@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="1024" height="1024">
+  <defs>
+    <style>
+      .outline { fill: none; stroke: #212529; stroke-width: 14; stroke-linecap: round; stroke-linejoin: round; }
+      .tail-fill { fill: #fd7e14; }
+      .body-fill { fill: #fd7e14; }
+      .head-fill { fill: #fd7e14; }
+      .ear-fill { fill: #fd7e14; }
+      .eye { fill: #212529; }
+      .acorn-body { fill: #20c997; stroke: #212529; stroke-width: 12; }
+      .acorn-cap { fill: #0aa17f; stroke: #212529; stroke-width: 12; }
+      .shine { stroke: #0d6efd; stroke-width: 10; }
+      .brand { fill: #212529; font-weight: 700; font-family: 'Segoe UI', system-ui, -apple-system, Roboto, 'Helvetica Neue', Arial, 'Noto Sans', 'Liberation Sans', sans-serif; }
+    </style>
+  </defs>
+
+  <!-- Tail -->
+  <path class="tail-fill outline" d="M88,184 C88,104 152,64 216,64 C300,64 352,120 352,176 C352,224 320,256 280,256 C248,256 224,240 224,216 C224,196 240,184 256,184 C288,184 304,208 304,224" />
+
+  <!-- Body -->
+  <ellipse class="body-fill outline" cx="240" cy="320" rx="120" ry="96" />
+  <!-- Head -->
+  <circle class="head-fill outline" cx="320" cy="240" r="56" />
+  <!-- Ear -->
+  <path class="ear-fill outline" d="M332,190 L364,172 L360,212 Z" />
+  <!-- Eye -->
+  <circle class="eye" cx="336" cy="240" r="7" />
+
+  <!-- Arm -->
+  <path class="body-fill outline" d="M290,280 C315,270 350,280 360,305" />
+
+  <!-- Acorn -->
+  <g transform="translate(350,300)">
+    <ellipse class="acorn-body" cx="0" cy="40" rx="44" ry="44"/>
+    <path class="acorn-cap" d="M-50,28 C-25,4 25,4 50,28 C45,38 -45,38 -50,28 Z" />
+    <path class="shine" d="M-58,40 L-70,40" />
+    <path class="shine" d="M58,40 L70,40" />
+    <path class="shine" d="M0,-4 L0,-18" />
+    <text class="brand" x="0" y="46" font-size="38" text-anchor="middle" dominant-baseline="middle">$</text>
+  </g>
+</svg>
