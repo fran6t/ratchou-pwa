@@ -86,7 +86,7 @@ class SettingsController {
     }
 
     /**
-     * Setup resource buttons (website, help, share)
+     * Setup resource buttons (website, github, share)
      */
     setupResourceButtons() {
         // Website button
@@ -95,10 +95,10 @@ class SettingsController {
             websiteBtn.addEventListener('click', this.openWebsite.bind(this));
         }
 
-        // Help button
-        const helpBtn = document.getElementById('helpBtn');
-        if (helpBtn) {
-            helpBtn.addEventListener('click', this.showHelp.bind(this));
+        // GitHub button
+        const githubBtn = document.getElementById('githubBtn');
+        if (githubBtn) {
+            githubBtn.addEventListener('click', this.openGitHub.bind(this));
         }
 
         // Share button
@@ -112,40 +112,14 @@ class SettingsController {
      * Open website link
      */
     openWebsite() {
-        // TODO: Replace with actual website URL
-        this.showAlert('Site web - URL à configurer', 'info');
+        window.open('https://www.ratchou.fr', '_blank');
     }
 
     /**
-     * Show help information
+     * Open GitHub repository
      */
-    showHelp() {
-        const helpText = `
-📖 Aide Ratchou v2.0
-
-🏠 Navigation :
-• Footer fixe : 4 boutons de navigation rapide
-• Menu hamburger : Accès à toutes les fonctions
-• Retour logo : Toujours vers le tableau de bord
-
-💰 Gestion :
-• Comptes : Créer et gérer plusieurs comptes
-• Mouvements : Ajouter recettes/dépenses
-• Catégories : Organiser vos transactions
-• Récurrents : Automatiser les dépenses fixes
-
-📊 Outils :
-• Projection : Visualiser vos finances futures
-• Export : Sauvegarder vos données
-• Import : Restaurer depuis une sauvegarde
-
-🔒 Sécurité :
-• Données 100% locales (IndexedDB)
-• Code d'accès simple mais efficace
-• Aucune transmission externe
-        `;
-        
-        this.showAlert(helpText.trim(), 'info');
+    openGitHub() {
+        window.open('https://github.com/fran6t/ratchou-pwa', '_blank');
     }
 
     /**
