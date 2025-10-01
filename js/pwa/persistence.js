@@ -410,7 +410,7 @@ class StoragePersistence {
         // Redirection vers la page de validation
         const currentPath = window.location.pathname;
         const isInManageFolder = currentPath.includes('/manage/');
-        const validationPageUrl = isInManageFolder ? '../persistence-required.html' : 'persistence-required.html';
+        const validationPageUrl = isInManageFolder ? '../persistence-required.html' : '/persistence-required.html';
 
         console.log('[Persistence] Redirection vers page de validation:', validationPageUrl);
         window.location.replace(validationPageUrl);

@@ -12,7 +12,7 @@
  */
 
 // 1) VERSIONNAGE : incrémente APP_VERSION à chaque release
-const APP_VERSION = '1.0.1'; // <- augmente ce nombre quand tu déploies une nouvelle version
+const APP_VERSION = '1.0.2'; // <- augmente ce nombre quand tu déploies une nouvelle version
 
 // ⚠️ IMPORTANT : CHEMINS PWA À SYNCHRONISER MANUELLEMENT
 // Les chemins sont définis dans js/pwa/install.js lignes 20-21

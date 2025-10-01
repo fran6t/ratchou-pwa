@@ -110,7 +110,7 @@ window.privateModeDetector = new PrivateModeDetector();
             // Redirection immédiate
             const currentPath = window.location.pathname;
             const isInManageFolder = currentPath.includes('/manage/');
-            const blockPageUrl = isInManageFolder ? '../persistence-required.html' : 'persistence-required.html';
+            const blockPageUrl = isInManageFolder ? '../persistence-required.html' : '/persistence-required.html';
 
             console.log(`[PrivateMode] ↪️ Redirection vers: ${blockPageUrl}`);
 
