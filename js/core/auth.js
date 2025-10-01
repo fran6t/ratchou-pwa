@@ -262,37 +262,6 @@ class RatchouAuth {
         return true;
     }
 
-    /**
-     * Import user data from SQLite export, overriding with the new device ID and access code.
-     * @param {object} sqliteUser - The user object from the JSON file (can be empty).
-     * @param {string} deviceId - The new device ID provided by the user.
-     * @param {string} accessCode - The new access code provided by the user.
-     */
-    async importFromSQLite(sqliteUser, deviceId, accessCode) {
-        try {
-            if (!accessCode) {
-                throw new Error('Invalid user data: accessCode is missing');
-            }
-            if (!deviceId) {
-                throw new Error('A new device ID must be provided for import');
-            }
-
-            // Create the new user object, ignoring data from the file
-            // and using the new credentials provided by the user.
-            const userData = {
-                code_acces: accessCode,
-                device_id: deviceId
-            };
-
-            await this.db.put('UTILISATEUR', userData);
-            
-            return RatchouUtils.error.success('Données utilisateur importées');
-            
-        } catch (error) {
-            console.error('User import error:', error);
-            return RatchouUtils.error.handleIndexedDBError(error, 'import utilisateur');
-        }
-    }
 }
 
 // Export for use in other modules

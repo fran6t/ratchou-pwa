@@ -18,8 +18,32 @@
     <link href="../assets/css/bootstrap.min.css" rel="stylesheet">
     <link href="../assets/css/bootstrap-icons.min.css" rel="stylesheet">
     <link href="../assets/css/app.css" rel="stylesheet">
+
+    <!-- Prevent dark mode flash -->
+    <style>
+        /* Prevent flash by setting initial colors based on system preference */
+        @media (prefers-color-scheme: dark) {
+            html { background-color: #212529; color: #dee2e6; }
+        }
+    </style>
+    <script>
+        (function() {
+            const theme = localStorage.getItem('ratchou-theme');
+            const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+
+            let resolvedTheme = 'light';
+            if (theme === 'dark' || (theme === 'auto' && prefersDark) || (!theme && prefersDark)) {
+                resolvedTheme = 'dark';
+            }
+
+            document.documentElement.setAttribute('data-bs-theme', resolvedTheme);
+            if (resolvedTheme === 'dark') {
+                document.documentElement.classList.add('dark-theme');
+            }
+        })();
+    </script>
 </head>
-<body class="bg-light">
+<body>
     
     <!-- Loading Overlay -->
     <div id="loadingOverlay" class="loading-overlay">
@@ -77,17 +101,11 @@
                             </div>
                             <div class="col-md-3">
                                 <label for="montant_min" class="form-label">Montant min</label>
-                                <div class="input-group">
-                                    <input type="number" step="0.01" class="form-control" id="montant_min" name="montant_min">
-                                    <span class="input-group-text">€</span>
-                                </div>
+                                <input type="number" step="any" class="form-control" id="montant_min" name="montant_min" placeholder="Montant minimum">
                             </div>
                             <div class="col-md-3">
                                 <label for="montant_max" class="form-label">Montant max</label>
-                                <div class="input-group">
-                                    <input type="number" step="0.01" class="form-control" id="montant_max" name="montant_max">
-                                    <span class="input-group-text">€</span>
-                                </div>
+                                <input type="number" step="any" class="form-control" id="montant_max" name="montant_max" placeholder="Montant maximum">
                             </div>
                             <div class="col-md-6">
                                 <label for="search" class="form-label">Recherche libre</label>
@@ -108,16 +126,16 @@
             <div class="card-header results-header d-flex justify-content-between align-items-center">
                 <h5 class="card-title mb-0">
                     📋 Mouvements trouvés 
-                    <span class="badge bg-light text-dark" id="totalCount">0</span>
+                    <span class="badge bg-body-secondary text-body" id="totalCount">0</span>
                 </h5>
                 <div id="pagination-info"></div>
             </div>
             <div class="card-body p-0">
-                <div id="no-results" class="text-center p-4 text-muted" style="display: none;">
+                <div id="no-results" class="text-center p-4 text-muted d-none">
                     <div class="mb-3">📭</div>
                     <div>Utilisez les filtres ci-dessus pour rechercher des mouvements</div>
                 </div>
-                <div id="results-table" style="display: none;">
+                <div id="results-table" class="d-none">
                     <div class="table-responsive">
                         <table class="table table-hover mb-0">
                             <thead class="table-light">
@@ -134,7 +152,7 @@
                 </div>
                 
                 <!-- Pagination -->
-                <div id="pagination-container" class="d-flex justify-content-center p-3" style="display: none !important;">
+                <div id="pagination-container" class="d-flex justify-content-center p-3 d-none">
                     <nav>
                         <ul class="pagination mb-0" id="pagination">
                         </ul>
@@ -286,25 +304,25 @@
                         
                         <div class="input-group mb-3">
                             <span class="input-group-text">Montant</span>
-                            <input type="number" step="0.01" class="form-control" id="edit_montant" name="montant" required>
-                            <span class="input-group-text">€</span>
+                            <input type="number" step="any" class="form-control" id="edit_montant" name="montant" required>
+                            <span class="input-group-text" id="edit_currency_symbol">€</span>
                         </div>
                         
                         <div class="mb-3">
                             <label class="form-label">Catégorie</label>
-                            <button type="button" class="btn btn-outline-primary rounded-pill w-100" data-panel-target="#categoriePanel" data-input-target="edit_categorie_id" data-icon="📂" data-original-text="Sélectionner...">📂 Sélectionner...</button>
+                            <button type="button" class="btn btn-outline-primary rounded-pill w-100" data-panel-target="#categoriePanel" data-input-target="edit_categorie_id" data-icon="📂" data-original-text="Catégorie">📂 Catégorie</button>
                             <input type="hidden" id="edit_categorie_id" name="categorie_id">
                         </div>
-                        
+
                         <div class="mb-3">
                             <label class="form-label">Bénéficiaire</label>
-                            <button type="button" class="btn btn-outline-primary rounded-pill w-100" data-panel-target="#beneficiairePanel" data-input-target="edit_beneficiaire_id" data-icon="👥" data-original-text="Sélectionner...">👥 Sélectionner...</button>
+                            <button type="button" class="btn btn-outline-primary rounded-pill w-100" data-panel-target="#beneficiairePanel" data-input-target="edit_beneficiaire_id" data-icon="👥" data-original-text="Bénéficiaire">👥 Bénéficiaire</button>
                             <input type="hidden" id="edit_beneficiaire_id" name="beneficiaire_id">
                         </div>
-                        
+
                         <div class="mb-3">
                             <label class="form-label">Type de paiement</label>
-                            <button type="button" class="btn btn-outline-primary rounded-pill w-100" data-panel-target="#typeDepensePanel" data-input-target="edit_type_depense_id" data-icon="💳" data-original-text="Sélectionner...">💳 Sélectionner...</button>
+                            <button type="button" class="btn btn-outline-primary rounded-pill w-100" data-panel-target="#typeDepensePanel" data-input-target="edit_type_depense_id" data-icon="💳" data-original-text="Type">💳 Type</button>
                             <input type="hidden" id="edit_type_depense_id" name="type_depense_id">
                         </div>
                         
@@ -328,6 +346,7 @@
     <script src="../js/lib/jszip.min.js"></script>
     
     <!-- Core Ratchou Scripts -->
+    <script src="../js/core/private-mode-detector.js"></script>
     <script src="../js/core/utils.js"></script>
     <script src="../js/core/indexeddb-wrapper.js"></script>
     <script src="../js/core/models/base-model.js"></script>
@@ -343,12 +362,14 @@
     <!-- Component System -->
     <script src="../js/components/component-loader.js"></script>
 
+    <!-- Theme Manager -->
+    <script src="../js/core/theme-manager.js"></script>
+
     <!-- Movements Page Script -->
     <script src="../js/pages/mouvements.js"></script>
     
     <!-- PWA Scripts -->
     <script src="../js/pwa/install.js"></script>
-    <script src="../js/pwa/persistence.js"></script>
 
 </body>
 </html>

@@ -18,6 +18,30 @@
     <link href="../assets/css/bootstrap.min.css" rel="stylesheet">
     <link href="../assets/css/bootstrap-icons.min.css" rel="stylesheet">
     <link href="../assets/css/app.css" rel="stylesheet">
+
+    <!-- Prevent dark mode flash -->
+    <style>
+        /* Prevent flash by setting initial colors based on system preference */
+        @media (prefers-color-scheme: dark) {
+            html { background-color: #212529; color: #dee2e6; }
+        }
+    </style>
+    <script>
+        (function() {
+            const theme = localStorage.getItem('ratchou-theme');
+            const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+
+            let resolvedTheme = 'light';
+            if (theme === 'dark' || (theme === 'auto' && prefersDark) || (!theme && prefersDark)) {
+                resolvedTheme = 'dark';
+            }
+
+            document.documentElement.setAttribute('data-bs-theme', resolvedTheme);
+            if (resolvedTheme === 'dark') {
+                document.documentElement.classList.add('dark-theme');
+            }
+        })();
+    </script>
     <style>
         .back-btn {
             position: absolute;
@@ -26,7 +50,7 @@
         }
     </style>
 </head>
-<body class="bg-light">
+<body>
     
     <!-- Loading Overlay -->
     <div id="loadingOverlay" class="position-fixed top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center bg-white bg-opacity-75" style="z-index: 9999; display: none !important;">
@@ -36,11 +60,11 @@
     </div>
 
     <!-- Navigation sera injectée par le composant header -->
-    
-    <!-- Bouton retour -->
-    <button type="button" class="btn btn-outline-secondary back-btn" onclick="location.replace('../dashboard.html')">
-        ← Retour
-    </button>
+
+    <div class="container-fluid">
+        <!-- Header sera injecté ici par ComponentLoader -->
+        <div id="header-container"></div>
+    </div>
 
     <div class="container mt-4">
         <!-- Alert Messages -->
@@ -51,45 +75,10 @@
                 <div class="card shadow-sm">
                     <div class="card-body" id="exportContent">
                         <!-- Contenu de la sauvegarde -->
-                        <div class="border rounded p-3 mb-4 bg-light">
-                            <p class="mb-0">Le fichier de sauvegarde contiendra l'intégralité de vos données : comptes, transactions, catégories, bénéficiaires, dépenses récurrentes et configuration.</p>
-                        </div>
-
-                        <!-- Format d'export -->
-                        <div class="mb-4">
-                            <h6><i class="me-2">🎯</i>Format d'export</h6>
-                            <div class="form-check mb-3">
-                                <input class="form-check-input" type="radio" name="exportFormat" id="formatJSON" value="json">
-                                <label class="form-check-label" for="formatJSON">
-                                    <strong>📄 JSON standard (.json)</strong>
-                                    <div class="small text-muted">Format lisible, compatible avec tous les outils</div>
-                                </label>
-                            </div>
-                            <div class="form-check">
-                                <input class="form-check-input" type="radio" name="exportFormat" id="formatZIP" value="zip" checked>
-                                <label class="form-check-label" for="formatZIP">
-                                    <strong>📦 ZIP compressé (.zip)</strong>
-                                    <div class="small text-muted">Plus léger, idéal pour le partage (réduction ~80%)</div>
-                                </label>
-                            </div>
-                        </div>
-
-                        <!-- Options après export -->
-                        <div class="mb-4">
-                            <h6><i class="me-2">📤</i>Que faire après l'export ?</h6>
-                            <div class="form-check mb-3">
-                                <input class="form-check-input" type="radio" name="exportAction" id="actionDownload" value="download" checked>
-                                <label class="form-check-label" for="actionDownload">
-                                    <strong>💾 Télécharger seulement</strong>
-                                    <div class="small text-muted">Enregistrer le fichier dans les téléchargements</div>
-                                </label>
-                            </div>
-                            <div class="form-check">
-                                <input class="form-check-input" type="radio" name="exportAction" id="actionShare" value="share">
-                                <label class="form-check-label" for="actionShare">
-                                    <strong>📱 Télécharger + Partager</strong>
-                                    <div class="small text-muted">Ouvrir les options de partage (Gmail, WhatsApp, etc.)</div>
-                                </label>
+                        <div class="border rounded p-3 mb-4 bg-body-secondary">
+                            <p class="mb-0">Le fichier de sauvegarde ZIP contiendra l'intégralité de vos données : comptes, transactions, catégories, bénéficiaires, dépenses récurrentes et configuration.</p>
+                            <div class="small text-muted mt-2">
+                                <strong>📦 Format :</strong> Archive ZIP avec validation des données
                             </div>
                         </div>
 
@@ -122,6 +111,7 @@
     <script src="../js/lib/jszip.min.js"></script>
     
     <!-- Core Ratchou Scripts -->
+    <script src="../js/core/private-mode-detector.js"></script>
     <script src="../js/core/utils.js"></script>
     <script src="../js/core/indexeddb-wrapper.js"></script>
     <script src="../js/core/models/base-model.js"></script>
@@ -137,8 +127,11 @@
     <!-- Component System -->
     <script src="../js/components/component-loader.js"></script>
 
+    <!-- Theme Manager -->
+    <script src="../js/core/theme-manager.js"></script>
+
     <!-- Export Page Script -->
-    <script src="../js/pages/export.js"></script>
+    <script type="module" src="../js/pages/export.js"></script>
     
     <!-- Export Success Modal -->
     <div class="modal fade" id="exportSuccessModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
@@ -155,35 +148,19 @@
                             <h6 class="mb-0"><i class="me-2">💾</i>Où trouver votre sauvegarde</h6>
                         </div>
                         <div class="card-body">
-                            <p class="card-text">Le fichier a été enregistré dans votre dossier de téléchargements habituel. Vous pouvez maintenant :</p>
-                            <ul class="mb-0">
-                                <li>Le conserver comme sauvegarde de sécurité</li>
-                                <li>Le transférer sur un autre appareil pour importer vos données</li>
-                            </ul>
-                        </div>
-                    </div>
-                    
-                    <!-- Sharing Options (will be shown conditionally) -->
-                    <div id="sharingOptions" class="card border-warning" style="display: none;">
-                        <div class="card-header bg-warning text-dark">
-                            <h6 class="mb-0"><i class="me-2">📱</i>Options de partage</h6>
-                        </div>
-                        <div class="card-body">
-                            <p class="card-text small mb-3">Choisissez comment partager votre fichier :</p>
-                            <div class="d-grid gap-2">
-                                <button type="button" class="btn btn-outline-primary btn-sm" id="shareViaGmailBtn">
-                                    📧 Partager par Gmail
-                                </button>
-                                <button type="button" class="btn btn-outline-success btn-sm" id="shareViaWhatsAppBtn">
-                                    💬 Partager par WhatsApp
-                                </button>
-                                <button type="button" class="btn btn-outline-info btn-sm" id="copyInstructionsBtn">
-                                    📋 Copier les instructions d'import
-                                </button>
+                            <p class="card-text mb-3">Le fichier ZIP a été enregistré dans votre dossier <strong>Téléchargements</strong>.</p>
+
+                            <div class="alert alert-warning mb-3">
+                                <strong>⚠️ Important :</strong> N'ouvrez PAS le fichier directement (vous seriez redirigé vers un extracteur ZIP).
                             </div>
-                            <div id="copySuccess" class="alert alert-success mt-3 small" style="display: none;">
-                                ✅ Instructions copiées ! Vous pouvez maintenant les coller dans un message.
-                            </div>
+
+                            <p class="card-text mb-2"><strong>Pour partager votre sauvegarde :</strong></p>
+                            <ol class="mb-0">
+                                <li>Ouvrez votre application de partage (Gmail, WhatsApp, etc.)</li>
+                                <li>Cliquez sur "Joindre un fichier" ou 📎</li>
+                                <li>Allez dans <strong>Téléchargements</strong></li>
+                                <li>Sélectionnez le fichier ZIP qui vient d'être téléchargé</li>
+                            </ol>
                         </div>
                     </div>
                 </div>
@@ -196,6 +173,5 @@
 
     <!-- PWA Scripts -->
     <script src="../js/pwa/install.js"></script>
-    <script src="../js/pwa/persistence.js"></script>
 </body>
 </html>

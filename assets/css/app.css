@@ -21,40 +21,39 @@
 }
 
 /* Styles pour les montants */
-.amount-positive { 
-    color: #198754; 
-    font-weight: bold; 
+.amount-positive {
+    color: var(--bs-success);
+    font-weight: bold;
 }
 
-.amount-negative { 
-    color: #dc3545; 
-    font-weight: bold; 
+.amount-negative {
+    color: var(--bs-danger);
+    font-weight: bold;
 }
 
-/* Panel slide system */
-.panel-slide { 
-    position: fixed; 
-    top: 0; 
-    right: 0; 
-    width: 90%; 
-    max-width: 400px; 
-    height: 100vh; 
-    z-index: 1080; 
-    background-color: white; 
-    transition: transform 0.3s ease-in-out; 
-    transform: translateX(100%); 
-    border-top-left-radius: 15px;
-    border-bottom-left-radius: 15px;
-    box-shadow: -5px 0 15px rgba(0,0,0,0.1);
+/* Panel slide system - optimized with CSS variables */
+.panel-slide {
+    position: fixed;
+    top: 0;
+    right: 0;
+    width: min(90%, 400px);
+    height: 100vh;
+    z-index: 1080;
+    background-color: var(--bs-body-bg);
+    transition: transform 0.3s ease-in-out;
+    transform: translateX(100%);
+    border-top-left-radius: 0.9375rem;
+    border-bottom-left-radius: 0.9375rem;
+    box-shadow: -0.3125rem 0 0.9375rem rgba(0, 0, 0, 0.1);
 }
 
-/* Styles pour les headers des panels */
+/* Panel headers */
 .panel-slide .panel-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
     padding: 1rem;
-    background: var(--primary-color, #0d6efd);
+    background: var(--bs-primary);
     color: white;
     margin: 0;
 }
@@ -66,8 +65,8 @@
 
 /* Bouton Ajouter dans les panels - style plus élégant */
 .panel-slide .btn-add {
-    background: rgba(255, 255, 255, 0.2);
-    border: 1px solid rgba(255, 255, 255, 0.3);
+    background: rgba(var(--bs-white-rgb), 0.2);
+    border: 1px solid rgba(var(--bs-white-rgb), 0.3);
     color: white;
     padding: 0.25rem 0.75rem;
     border-radius: 20px;
@@ -77,8 +76,8 @@
 }
 
 .panel-slide .btn-add:hover {
-    background: rgba(255, 255, 255, 0.3);
-    border-color: rgba(255, 255, 255, 0.5);
+    background: rgba(var(--bs-white-rgb), 0.3);
+    border-color: rgba(var(--bs-white-rgb), 0.5);
     color: white;
     transform: translateY(-1px);
 }
@@ -126,17 +125,15 @@
     visibility: visible;
 }
 
-/* Configuration du menu hamburger offcanvas */
+/* Offcanvas customization */
 .offcanvas-end {
-    width: 55% !important;
-    max-width: 380px;
-    border-top-left-radius: 15px;
-    border-bottom-left-radius: 15px;
+    width: min(55%, 380px);
+    border-top-left-radius: 0.9375rem;
+    border-bottom-left-radius: 0.9375rem;
 }
 
-/* Backdrop plus sombre pour l'offcanvas */
 .offcanvas-backdrop {
-    background-color: rgba(0, 0, 0, 0.4) !important;
+    background-color: rgba(0, 0, 0, 0.4);
 }
 
 /* Panel content structure */
@@ -152,10 +149,10 @@
     padding: 1rem; 
 }
 
-.panel-slide .filter-section { 
-    padding: 0.75rem 1rem; 
-    border-bottom: 1px solid #dee2e6; 
-    background-color: #f8f9fa; 
+.panel-slide .filter-section {
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid var(--bs-border-color);
+    background-color: var(--bs-secondary-bg);
 }
 
 .panel-slide .list-group { 
@@ -178,20 +175,20 @@
     z-index: 1090;
 }
 
-.list-group-item.active { 
-    z-index: 2; 
-    color: #fff; 
-    background-color: #0d6efd; 
-    border-color: #0d6efd; 
+.list-group-item.active {
+    z-index: 2;
+    color: var(--bs-primary-text-emphasis);
+    background-color: var(--bs-primary);
+    border-color: var(--bs-primary);
 }
 
-.movement-row:hover { 
-    background-color: #f8f9fa; 
-    cursor: pointer; 
+.movement-row:hover {
+    background-color: var(--bs-tertiary-bg);
+    cursor: pointer;
 }
 
-/* Alert styles */
-.alert {
+/* Alert positioning for toasts */
+.alert.fixed-top-right {
     position: fixed;
     top: 20px;
     right: 20px;
@@ -199,27 +196,26 @@
     min-width: 250px;
 }
 
-/* Loading overlay */
-.loading-overlay { 
-    position: fixed; 
-    top: 0; 
-    left: 0; 
-    width: 100%; 
-    height: 100%; 
-    background: rgba(0,0,0,0.7); 
-    z-index: 9999; 
+/* Loading overlay - simplified with Bootstrap modal approach */
+.loading-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.5);
+    z-index: 9999;
     display: none;
+    align-items: center;
+    justify-content: center;
 }
 
 .loading-content {
-    position: absolute;
-    top: 50%; 
-    left: 50%;
-    transform: translate(-50%, -50%);
     background: white;
     padding: 2rem;
-    border-radius: 10px;
+    border-radius: 0.5rem;
     text-align: center;
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
 }
 
 /* Styles spécifiques pour la page recurrents - cartes récapitulatives plus compactes sur mobile */
@@ -267,28 +263,28 @@
     }
 }
 
-/* Styles spécifiques pour la page mouvements */
+/* Page mouvements - using Bootstrap utilities where possible */
 .filter-group {
-    background: #f8f9fa;
-    border-radius: 8px;
+    background: var(--bs-secondary-bg);
+    border-radius: 0.5rem;
     padding: 1rem;
     margin-bottom: 1rem;
 }
 
 .results-header {
-    background: linear-gradient(135deg, #0d6efd, #0b5ed7);
+    background: linear-gradient(135deg, var(--bs-primary), var(--bs-primary-dark, #0b5ed7));
     color: white;
-    border-radius: 8px 8px 0 0;
+    border-radius: 0.5rem 0.5rem 0 0;
 }
 
 .table-hover tbody tr:hover td {
-    background-color: rgba(13, 110, 253, 0.05);
+    background-color: rgba(var(--bs-primary-rgb), 0.05);
 }
 
 .date-separator {
-    background-color: #e9ecef !important;
+    background-color: var(--bs-gray-200);
     font-weight: bold;
-    color: #495057;
+    color: var(--bs-gray-600);
 }
 
 /* Alignement vertical des boutons d'actions pour cette page uniquement */
@@ -301,60 +297,61 @@
     padding: 0.25rem 0.5rem;
 }
 
-/* Responsive: plus large sur desktop */
+/* Desktop responsive adjustments */
 @media (min-width: 768px) {
     .panel-slide {
         width: 100%;
         border-radius: 0;
     }
-    
-    /* Menu plus large sur desktop */
+
     .offcanvas-end {
-        width: 100% !important;
-        border-radius: 0 !important;
+        width: 100%;
+        border-radius: 0;
     }
 }
 
-/* Custom boxes to replace Bootstrap alerts inside accordions and modals */
-.custom-box {
-    padding: 1rem;
-    margin-bottom: 1rem;
-    border: 1px solid transparent;
-    border-radius: 0.375rem;
-}
-.custom-box-info {
-    color: #055160;
-    background-color: #cff4fc;
-    border-color: #b6effb;
-}
-.custom-box-warning {
-    color: #664d03;
-    background-color: #fff3cd;
-    border-color: #ffecb5;
-}
-.custom-box-success {
-    color: #0f5132;
-    background-color: #d1e7dd;
-    border-color: #badbcc;
-}
-.custom-box-danger {
-    color: #842029;
-    background-color: #f8d7da;
-    border-color: #f5c2c7;
-}
+/* Removed custom-box-* classes - using Bootstrap alerts instead */
 
-/* Amélioration de la visibilité des checkboxes */
+/* Override checkbox border for better visibility */
 .form-check-input {
-    border: 1px solid #6c757d !important;
+    border-color: var(--bs-border-color);
 }
 
 /* Animation du solde du compte - simple et efficace */
 .balance-animating-positive {
-    color: #28a745 !important;
+    color: var(--bs-success) !important;
     transition: color 0.2s ease-in-out;
 }
 
 .balance-animating-negative {
-    color: #dc3545 !important;
+    color: var(--bs-danger) !important;
     transition: color 0.2s ease-in-out;
 }
+
+/* Animation des nouveaux mouvements dans la saisie rapide */
+.movement-new {
+    animation: newMovementInsert 0.5s ease-out;
+    background-color: rgba(40, 167, 69, 0.1) !important; /* Vert clair pour recette */
+    transition: background-color 3s ease-out 0.5s;
+}
+
+.movement-new.expense {
+    background-color: rgba(13, 110, 253, 0.1) !important; /* Bleu clair pour dépense */
+}
+
+@keyframes newMovementInsert {
+    0% {
+        opacity: 0;
+        transform: translateY(-20px) scale(0.95);
+    }
+    100% {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+/* Retour à l'état normal après l'animation */
+.movement-new.fade-to-normal {
+    background-color: transparent !important;
+}
+

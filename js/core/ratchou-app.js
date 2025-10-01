@@ -3,6 +3,8 @@
  * Orchestrates all components and provides unified API
  */
 
+// Version supprimée - utilise maintenant le Service Worker comme source unique
+
 class RatchouApp {
     constructor() {
         this.db = null;
@@ -12,12 +14,29 @@ class RatchouApp {
     }
 
     /**
+     * Get application version from Service Worker
+     * @returns {Promise<string>} Application version
+     */
+    async getVersion() {
+        return await RatchouUtils.version.getAppVersionFromSW();
+    }
+
+    /**
+     * Get application version with environment info
+     * @returns {Promise<object>} Version info with environment
+     */
+    async getVersionWithEnvironment() {
+        return await RatchouUtils.version.getVersionWithEnvironment();
+    }
+
+    /**
      * Initialize the application
      */
     async initialize() {
         try {
             RatchouUtils.debug.log('Initializing Ratchou application');
-            
+
+
             // Initialize IndexedDB wrapper
             this.db = new IndexedDBWrapper('ratchou', 1);
             await this.db.init();
@@ -46,7 +65,7 @@ class RatchouApp {
             }
 
             this.isInitialized = true;
-            
+
             RatchouUtils.debug.log('Ratchou application initialized successfully');
             console.log('✅ Ratchou application initialization completed');
             return RatchouUtils.error.success('Application initialisée');
@@ -54,6 +73,52 @@ class RatchouApp {
         } catch (error) {
             console.error('Application initialization error:', error);
             return RatchouUtils.error.handleIndexedDBError(error, 'initialisation');
+        }
+    }
+
+    /**
+     * Initialize ONLY the structure (database, auth, models) without data
+     * Used for import/restore operations - Phase 1 of 2-phase initialization
+     */
+    async initializeStructure() {
+        try {
+            RatchouUtils.debug.log('Initializing database structure for import...');
+            console.log('🏗️ Phase 1: Initializing database structure...');
+
+            // 1. Recreate database completely (deletes everything and recreates structure)
+            await this.db.recreateDatabase();
+            console.log('✅ Database recreated');
+
+            // 2. Initialize IndexedDB connection and create stores
+            await this.db.init();
+            console.log('✅ Database structure initialized');
+
+            // 3. Initialize authentication system
+            this.auth = new RatchouAuth(this.db);
+            await this.auth.initialize();
+            console.log('✅ Authentication system initialized');
+
+            // 4. Initialize models with clean database connection
+            this.models = {
+                accounts: new AccountsModel(this.db),
+                categories: new CategoriesModel(this.db),
+                payees: new PayeesModel(this.db),
+                expenseTypes: new ExpenseTypesModel(this.db),
+                transactions: new TransactionsModel(this.db),
+                recurringExpenses: new RecurringExpensesModel(this.db)
+            };
+            console.log('✅ Data models initialized');
+
+            // Mark as structurally ready (but not fully initialized until data is added)
+            this.isInitialized = true;
+
+            RatchouUtils.debug.log('Database structure initialization completed');
+            console.log('✅ Phase 1 completed: Structure ready for data import');
+            return RatchouUtils.error.success('Structure de base initialisée');
+
+        } catch (error) {
+            console.error('Structure initialization error:', error);
+            return RatchouUtils.error.handleIndexedDBError(error, 'initialisation structure');
         }
     }
 
@@ -118,7 +183,7 @@ class RatchouApp {
      */
     async getCurrentAccount() {
         this.requireAuth();
-        
+
         // Try to get from storage first
         const storedAccountId = RatchouUtils.storage.get('current_account_id');
         if (storedAccountId) {
@@ -127,22 +192,15 @@ class RatchouApp {
         }
 
         // Fallback to principal account
-        let principal = await this.models.accounts.getPrincipal();
-        
-        // If no principal account exists, create one
+        const principal = await this.models.accounts.getPrincipal();
+
+        // If no principal account exists, this is a data integrity issue
         if (!principal) {
-            await this.models.accounts.create({
-                nom_compte: 'Compte Principal',
-                balance: 0,
-                is_principal: true
-            });
-            principal = await this.models.accounts.getPrincipal();
+            throw new Error('Aucun compte principal trouvé. Veuillez réinitialiser l\'application ou importer des données.');
         }
 
         // Store current account
-        if (principal) {
-            RatchouUtils.storage.set('current_account_id', principal.id);
-        }
+        RatchouUtils.storage.set('current_account_id', principal.id);
 
         return principal;
     }
@@ -161,6 +219,8 @@ class RatchouApp {
         this.requireAuth();
         return await this.models.recurringExpenses.processAll();
     }
+
+    // =================================================================
 
     /**
      * Get dashboard data
@@ -187,7 +247,7 @@ class RatchouApp {
     // =================================================================
 
     /**
-     * Import data from SQLite JSON export
+     * Import data from IndexedDB JSON export
      * @param {object} jsonData - The parsed JSON data from the export file
      * @param {string} deviceId - The new device ID provided by the user
      * @param {string} accessCode - The new access code provided by the user
@@ -195,9 +255,9 @@ class RatchouApp {
     async importFromJSON(jsonData, deviceId, accessCode) {
         try {
             this.requireInitialized();
-            
+
             RatchouUtils.debug.log('Starting JSON import for device:', deviceId);
-            
+
             // Validate JSON structure
             if (!jsonData.data) {
                 throw new Error('Invalid JSON structure - missing data property');
@@ -210,67 +270,93 @@ class RatchouApp {
             }
 
             const results = {};
-            
+
             // Import in correct order (respecting dependencies)
-            
-            // 1. User data (support both old and new format)
-            if (jsonData.data.utilisateur?.rows?.[0]) {
-                results.user = await this.auth.importFromSQLite(jsonData.data.utilisateur.rows[0], deviceId, accessCode);
-            } else if (jsonData.data.UTILISATEUR?.rows?.[0]) {
-                results.user = await this.auth.importFromSQLite(jsonData.data.UTILISATEUR.rows[0], deviceId, accessCode);
-            } else {
-                // If user data is missing from the file, create it from scratch
-                results.user = await this.auth.importFromSQLite({}, deviceId, accessCode);
-            }
 
-            // 2. Accounts (support both old and new format)
+            // 1. User data - create new user with provided credentials
+            const userData = {
+                code_acces: accessCode,
+                device_id: deviceId
+            };
+            await this.db.put('UTILISATEUR', userData);
+            results.user = RatchouUtils.error.success('Données utilisateur importées');
+
+            // 2. Accounts
             if (jsonData.data.comptes?.rows) {
-                results.accounts = await this.models.accounts.importFromSQLite(jsonData.data.comptes.rows);
-            } else if (jsonData.data.COMPTES?.rows) {
-                results.accounts = await this.models.accounts.importFromSQLite(jsonData.data.COMPTES.rows);
+                results.accounts = await this.models.accounts.bulkImport(jsonData.data.comptes.rows);
             }
 
-            // 3. Categories (support both old and new format)
+            // 3. Categories
             if (jsonData.data.categories?.rows) {
-                results.categories = await this.models.categories.importFromSQLite(jsonData.data.categories.rows);
-            } else if (jsonData.data.CATEGORIES?.rows) {
-                results.categories = await this.models.categories.importFromSQLite(jsonData.data.CATEGORIES.rows);
+                results.categories = await this.models.categories.bulkImport(jsonData.data.categories.rows);
             }
 
-            // 4. Payees (support both old and new format)
+            // 4. Payees
             if (jsonData.data.beneficiaires?.rows) {
-                results.payees = await this.models.payees.importFromSQLite(jsonData.data.beneficiaires.rows);
-            } else if (jsonData.data.BENEFICIAIRES?.rows) {
-                results.payees = await this.models.payees.importFromSQLite(jsonData.data.BENEFICIAIRES.rows);
+                results.payees = await this.models.payees.bulkImport(jsonData.data.beneficiaires.rows);
             }
 
-            // 5. Expense types (support both old and new format)
+            // 5. Expense types
             if (jsonData.data.type_depenses?.rows) {
-                results.expenseTypes = await this.models.expenseTypes.importFromSQLite(jsonData.data.type_depenses.rows);
-            } else if (jsonData.data.TYPE_DEPENSES?.rows) {
-                results.expenseTypes = await this.models.expenseTypes.importFromSQLite(jsonData.data.TYPE_DEPENSES.rows);
+                results.expenseTypes = await this.models.expenseTypes.bulkImport(jsonData.data.type_depenses.rows);
             }
 
-            // 6. Transactions (support both old and new format)
+            // 6. Transactions
             if (jsonData.data.mouvements?.rows) {
-                results.transactions = await this.models.transactions.importFromSQLite(jsonData.data.mouvements.rows);
-            } else if (jsonData.data.MOUVEMENTS?.rows) {
-                results.transactions = await this.models.transactions.importFromSQLite(jsonData.data.MOUVEMENTS.rows);
+                results.transactions = await this.models.transactions.bulkImport(jsonData.data.mouvements.rows);
             }
 
-            // 7. Recurring expenses (support both old and new format)
+            // 7. Recurring expenses
             if (jsonData.data.recurrents?.rows) {
-                results.recurringExpenses = await this.models.recurringExpenses.importFromSQLite(jsonData.data.recurrents.rows);
-            } else if (jsonData.data.DEPENSES_FIXES?.rows) {
-                results.recurringExpenses = await this.models.recurringExpenses.importFromSQLite(jsonData.data.DEPENSES_FIXES.rows);
+                results.recurringExpenses = await this.models.recurringExpenses.bulkImport(jsonData.data.recurrents.rows);
             }
 
-            RatchouUtils.debug.log('JSON import completed');
+            // Ensure minimum required data exists after import
+            await this.ensureMinimumData();
+
+            RatchouUtils.debug.log('JSON import completed - Phase 2 finished');
+            console.log('✅ Phase 2 completed: Data import successful');
             return RatchouUtils.error.success('Import réussi', results);
-            
+
         } catch (error) {
             console.error('Import error:', error);
             return RatchouUtils.error.handleIndexedDBError(error, 'import');
+        }
+    }
+
+    /**
+     * Ensure minimum required data exists after import
+     * Creates default data if essential data is missing
+     */
+    async ensureMinimumData() {
+        try {
+            console.log('🔍 Checking for minimum required data...');
+
+            // Check accounts - if none exist, create defaults
+            const accounts = await this.models.accounts.getAll();
+            if (accounts.length === 0) {
+                console.log('No accounts found, creating defaults...');
+                await this.initializeWithDefaults();
+                return; // initializeWithDefaults creates everything
+            }
+
+            // Accounts exist, but check for essential supporting data
+            const categories = await this.models.categories.getAll();
+            if (categories.length === 0) {
+                console.log('No categories found, creating defaults...');
+                await this.models.categories.createDefaults();
+            }
+
+            const expenseTypes = await this.models.expenseTypes.getAll();
+            if (expenseTypes.length === 0) {
+                console.log('No expense types found, creating defaults...');
+                await this.models.expenseTypes.createDefaults();
+            }
+
+            console.log('✅ Minimum data verification complete');
+        } catch (error) {
+            console.error('Error ensuring minimum data:', error);
+            // Don't throw - this shouldn't fail the import
         }
     }
 
@@ -337,8 +423,8 @@ class RatchouApp {
     async initializeWithDefaults() {
         try {
             // Check if data already exists
-            const accountCount = await this.models.accounts.count();
-            if (accountCount > 0) {
+            const accounts = await this.models.accounts.getAll();
+            if (accounts.length > 0) {
                 return RatchouUtils.error.success('Des données existent déjà');
             }
 
@@ -350,7 +436,9 @@ class RatchouApp {
             const accountResult = await this.models.accounts.create({
                 nom_compte: 'Compte Principal',
                 balance: 0,
-                is_principal: 1 // Use 1 for true for better IndexedDB indexing
+                is_principal: 1, // Use 1 for true for better IndexedDB indexing
+                currency: 'EUR',
+                remarque_encrypted: null
             });
             console.log('Account creation result:', accountResult);
 
@@ -361,18 +449,43 @@ class RatchouApp {
             }
             const principalAccount = accountResult.data;
 
-            // Create second default account
-            console.log('Creating Budget Sem. 1 account...');
-            const budgetAccountResult = await this.models.accounts.create({
-                nom_compte: 'Budget Sem. 1',
-                balance: 200.00,
-                is_principal: 0 // Secondary account
+            // Create 4 default week budget accounts
+            console.log('Creating 4 Budget Sem. accounts...');
+            const budgetAccounts = ['Budget Sem. 1', 'Budget Sem. 2', 'Budget Sem. 3', 'Budget Sem. 4'];
+
+            for (let i = 0; i < budgetAccounts.length; i++) {
+                const accountName = budgetAccounts[i];
+                console.log(`Creating ${accountName} account...`);
+
+                const budgetAccountResult = await this.models.accounts.create({
+                    nom_compte: accountName,
+                    balance: 20000.00,
+                    is_principal: 0, // Secondary account
+                    currency: 'EUR',
+                    remarque_encrypted: null
+                });
+                console.log(`${accountName} creation result:`, budgetAccountResult);
+
+                if (!budgetAccountResult.success) {
+                    console.error(`Failed to create ${accountName} account:`, budgetAccountResult.message);
+                    // Continue installation even if budget account fails
+                }
+            }
+
+            // Create BTC account
+            console.log('Creating Mes BTC account...');
+            const btcAccountResult = await this.models.accounts.create({
+                nom_compte: 'Mes BTC',
+                balance: 0.0025,
+                is_principal: 0, // Secondary account
+                currency: 'BTC',
+                remarque_encrypted: null
             });
-            console.log('Budget account creation result:', budgetAccountResult);
-            
-            if (!budgetAccountResult.success) {
-                console.error('Failed to create Budget Sem. 1 account:', budgetAccountResult.message);
-                // Continue installation even if budget account fails
+            console.log('Mes BTC creation result:', btcAccountResult);
+
+            if (!btcAccountResult.success) {
+                console.error('Failed to create Mes BTC account:', btcAccountResult.message);
+                // Continue installation even if BTC account fails
             }
 
             console.log('Creating default categories...');

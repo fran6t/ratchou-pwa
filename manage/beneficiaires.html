@@ -19,9 +19,9 @@
     <link href="../assets/css/bootstrap-icons.min.css" rel="stylesheet">
     <link href="../assets/css/app.css" rel="stylesheet">
 </head>
-<body class="bg-light">
+<body>
     <!-- Loading Overlay -->
-    <div id="loadingOverlay" class="position-fixed top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center bg-white bg-opacity-75" style="z-index: 9999; display: none !important;">
+    <div id="loadingOverlay" class="position-fixed top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center bg-body bg-opacity-75" style="z-index: 9999; display: none !important;">
         <div class="spinner-border text-primary" role="status">
             <span class="visually-hidden">Chargement...</span>
         </div>
@@ -36,17 +36,31 @@
         <div class="row">
             <div class="col-12">
                 <div class="card shadow-sm">
-                    <div class="card-header d-flex justify-content-between align-items-center">
-                        <div class="d-flex align-items-center gap-2 flex-grow-1 me-2">
-                            <div class="input-group" style="max-width: 200px;">
-                                <input type="text" class="form-control form-control-sm" id="beneficiaryFilter" placeholder="Filtrer...">
-                                <button class="btn btn-outline-secondary btn-sm" type="button" id="clearFilterBtn" title="Effacer le filtre">✕</button>
+                    <div class="card-header sticky-top bg-body" style="z-index: 10;">
+                        <!-- Ligne 1: Filtre + Tri + Ajouter -->
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <div class="d-flex align-items-center gap-2 flex-grow-1 me-2">
+                                <div class="input-group" style="max-width: 200px;">
+                                    <input type="text" class="form-control form-control-sm" id="beneficiaryFilter" placeholder="Filtrer...">
+                                    <button class="btn btn-outline-secondary btn-sm" type="button" id="clearFilterBtn" title="Effacer le filtre">✕</button>
+                                </div>
+                                <button class="btn btn-outline-secondary btn-sm" type="button" id="sortToggleBtn" title="Basculer le tri"><i class="bi bi-sort-alpha-down"></i></button>
                             </div>
-                            <button class="btn btn-outline-secondary btn-sm" type="button" id="sortToggleBtn" title="Basculer le tri"><i class="bi bi-sort-alpha-down"></i></button>
+                            <button class="btn btn-primary btn-sm rounded-pill flex-shrink-0" data-bs-toggle="modal" data-bs-target="#addModal">
+                                <i class="fas fa-plus"></i> Ajouter
+                            </button>
                         </div>
-                        <button class="btn btn-primary btn-sm rounded-pill flex-shrink-0" data-bs-toggle="modal" data-bs-target="#addModal">
-                            <i class="fas fa-plus"></i> Ajouter
-                        </button>
+
+                        <!-- Ligne 2: Bouton de fusion avec bouton d'annulation -->
+                        <div class="d-flex justify-content-center align-items-center gap-2">
+                            <button id="mergeBtn" class="btn btn-secondary btn-sm rounded-pill flex-grow-1">
+                                🔗 Fusionner des bénéficiaires
+                            </button>
+                            <button id="cancelMergeBtn" class="btn btn-outline-danger btn-sm"
+                                    style="display: none;" title="Annuler la fusion">
+                                ✕
+                            </button>
+                        </div>
                     </div>
                     <div class="card-body">
                         <div id="beneficiaryList">
@@ -140,12 +154,77 @@
             </div>
         </div>
     </div>
+
+    <!-- Merge Confirmation Modal -->
+    <div class="modal fade" id="mergeModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">🔗 Confirmer la fusion des bénéficiaires</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-warning">
+                        <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                        <strong>Attention :</strong> Cette opération est irréversible !
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="card border-success">
+                                <div class="card-header bg-success text-white">
+                                    <h6 class="mb-0">✅ Bénéficiaire conservé</h6>
+                                </div>
+                                <div class="card-body">
+                                    <strong id="mergeKeepName"></strong>
+                                    <br><small class="text-muted">Usage : <span id="mergeKeepUsage"></span></small>
+                                    <br><small class="text-muted">Transactions : <span id="mergeKeepTransactions"></span></small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="card border-danger">
+                                <div class="card-header bg-danger text-white">
+                                    <h6 class="mb-0">🗑️ Bénéficiaire supprimé</h6>
+                                </div>
+                                <div class="card-body">
+                                    <strong id="mergeDeleteName"></strong>
+                                    <br><small class="text-muted">Usage : <span id="mergeDeleteUsage"></span></small>
+                                    <br><small class="text-muted">Transactions : <span id="mergeDeleteTransactions"></span></small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mt-3">
+                        <h6>📊 Résultat après fusion :</h6>
+                        <ul>
+                            <li><strong>Nom :</strong> <span id="mergeFinalName"></span></li>
+                            <li><strong>Usage total :</strong> <span id="mergeFinalUsage"></span></li>
+                            <li><strong>Transactions totales :</strong> <span id="mergeFinalTransactions"></span></li>
+                        </ul>
+                    </div>
+
+                    <input type="hidden" id="mergeKeepId">
+                    <input type="hidden" id="mergeDeleteId">
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary rounded-pill" data-bs-dismiss="modal">Annuler</button>
+                    <button type="button" class="btn btn-danger rounded-pill" id="confirmMergeBtn">
+                        <span class="spinner-border spinner-border-sm me-2" style="display: none;"></span>
+                        ⚡ Fusionner
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
     
     <!-- Sidebar sera injecté par le composant sidebar -->
 
     <script src="../assets/js/bootstrap.bundle.min.js"></script>
     
     <!-- Core Ratchou Scripts -->
+    <script src="../js/core/private-mode-detector.js"></script>
     <script src="../js/core/utils.js"></script>
     <script src="../js/core/indexeddb-wrapper.js"></script>
     <script src="../js/core/models/base-model.js"></script>
@@ -161,11 +240,13 @@
     <!-- Component System -->
     <script src="../js/components/component-loader.js"></script>
 
+    <!-- Theme Manager -->
+    <script src="../js/core/theme-manager.js"></script>
+
     <!-- Beneficiaires Page Script -->
     <script src="../js/pages/beneficiaires.js"></script>
     
     <!-- PWA Scripts -->
     <script src="../js/pwa/install.js"></script>
-    <script src="../js/pwa/persistence.js"></script>
 </body>
 </html>

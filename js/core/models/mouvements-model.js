@@ -360,13 +360,6 @@ class TransactionsModel extends BaseModel {
         }
     }
 
-    /**
-     * Import from SQLite data
-     */
-    async importFromSQLite(sqliteTransactions) {
-        const transformedTransactions = sqliteTransactions.map(RatchouUtils.transform.transaction);
-        return await this.bulkImport(transformedTransactions);
-    }
 
     /**
      * Search transactions with details (enriched data)

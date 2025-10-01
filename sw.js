@@ -8,10 +8,17 @@
  * 3) On intercepte les navigations HTML et on renvoie un "fallback" (index.html) en cas d'offline.
  * 4) On isole les requêtes non-GET (POST/PUT/DELETE) -> le SW ne les gère pas.
  * 5) On active navigationPreload pour accélérer le premier chargement.
+ * 1.0.1 Corriger la persistance des sélections dans les panels du formulaire rapide…)
  */
 
 // 1) VERSIONNAGE : incrémente APP_VERSION à chaque release
-const APP_VERSION = '1.0.0'; // <- augmente ce nombre quand tu déploies une nouvelle version
+const APP_VERSION = '1.0.1'; // <- augmente ce nombre quand tu déploies une nouvelle version
+
+// ⚠️ IMPORTANT : CHEMINS PWA À SYNCHRONISER MANUELLEMENT
+// Les chemins sont définis dans js/pwa/install.js lignes 20-21
+// DEV:  swPath = '/ratchou/sw.js'  | scopePath = '/ratchou/'
+// PROD: swPath = '/sw.js'          | scopePath = '/'
+// ⚠️ NE PAS OUBLIER DE METTRE À JOUR LES DEUX FICHIERS !
 
 // 2) Noms de caches basés sur la version (important pour invalider l'ancien cache)
 const STATIC_CACHE = `ratchou-static-${APP_VERSION}`;
@@ -19,69 +26,68 @@ const DYNAMIC_CACHE = `ratchou-dyn-${APP_VERSION}`;
 
 // 3) Fichiers à précacher (minimum viable).
 //    ⚠️ Mets uniquement des fichiers qui existent VRAIMENT et qui sont communs à toutes les pages.
+// START:STATIC_FILES
 const STATIC_FILES = [
-  // -- Fichiers de base --
-  './',
-  './index.html',
-  './dashboard.html',
+  './assets/css/app.css',
+  './assets/css/bootstrap-icons.min.css',
   './assets/css/bootstrap.min.css',
-  './assets/js/bootstrap.bundle.min.js',
-  './manifest.json',
   './assets/icons/icon-192.png',
   './assets/icons/icon-512.png',
-
-  // -- Core JS --
-  './js/core/utils.js',
-  './js/core/indexeddb-wrapper.js',
+  './assets/js/bootstrap.bundle.min.js',
+  './dashboard.html',
+  './index.html',
+  './js/components/backup-reminder.js',
+  './js/components/component-loader.js',
+  './js/components/fixed-footer.js',
+  './js/components/header.js',
+  './js/components/import-export.js',
+  './js/components/modals.js',
+  './js/components/sidebar.js',
   './js/core/auth.js',
-  './js/core/ratchou-app.js',
-
-  // -- Modèles de données --
+  './js/core/crypto-utils.js',
+  './js/core/indexeddb-wrapper.js',
   './js/core/models/base-model.js',
-  './js/core/models/comptes-model.js',
+  './js/core/models/beneficiaires-model.js',
   './js/core/models/categories-model.js',
+  './js/core/models/comptes-model.js',
   './js/core/models/mouvements-model.js',
   './js/core/models/recurrents-model.js',
-  './js/core/models/beneficiaires-model.js',
   './js/core/models/type_depenses-model.js',
-
-  // -- Composants --
-  './js/components/component-loader.js',
-  './js/components/header.js',
-  './js/components/sidebar.js',
-  './js/components/modals.js',
-  './js/components/backup-reminder.js',
-  './js/components/import-export.js',
-  './js/components/fixed-footer.js',
-
-  // -- Scripts des pages --
-  './js/pages/main-controller.js',
-  './js/pages/dashboard.js',
+  './js/core/private-mode-detector.js',
+  './js/core/ratchou-app.js',
+  './js/core/theme-manager.js',
+  './js/core/utils.js',
+  './js/lib/jszip.min.js',
   './js/pages/accounts.js',
   './js/pages/beneficiaires.js',
   './js/pages/categories.js',
+  './js/pages/dashboard.js',
   './js/pages/export.js',
+  './js/pages/main-controller.js',
   './js/pages/mouvements.js',
   './js/pages/parametres.js',
   './js/pages/projection.js',
+  './js/pages/pwa.js',
   './js/pages/recurrents.js',
   './js/pages/type_depenses.js',
-
-  // -- Pages HTML de gestion --
-  './manage/comptes.html',
+  './js/pwa/install.js',
+  './js/pwa/persistence.js',
   './manage/beneficiaires.html',
   './manage/categories.html',
+  './manage/comptes.html',
   './manage/export.html',
   './manage/mouvements.html',
   './manage/parametres.html',
   './manage/projection.html',
+  './manage/pwa.html',
   './manage/recurrents.html',
   './manage/type_depenses.html',
-  
-  // -- PWA --
-  './js/pwa/install.js',
-  './js/pwa/persistence.js'
+  './manifest.json',
+  './persistence-required.html',
+  './sw.js',
+
 ];
+// END:STATIC_FILES
 
 // INSTALLATION : on crée/alimente le cache statique
 self.addEventListener('install', (event) => {
@@ -89,8 +95,8 @@ self.addEventListener('install', (event) => {
     const cache = await caches.open(STATIC_CACHE);
     // "cache: 'reload'" force le navigateur à re-télécharger ces fichiers (évite d'anciennes versions)
     await cache.addAll(STATIC_FILES.map(u => new Request(u, { cache: 'reload' })));
-    // skipWaiting() permet au nouveau SW d'être prêt immédiatement (il attendra quand même l'activation)
-    await self.skipWaiting();
+    // Ne pas faire skipWaiting() automatiquement - attendre la demande explicite de l'utilisateur
+    console.log('[SW] Installation terminée, en attente de l\'autorisation utilisateur pour l\'activation');
   })());
 });
 
@@ -175,6 +181,7 @@ self.addEventListener('fetch', (event) => {
 // COMMUNICATION : permet au script de page de demander au SW d'activer la nouvelle version immédiatement
 self.addEventListener('message', (event) => {
   if (event.data && event.data.type === 'SKIP_WAITING') {
+    console.log('[SW] Demande de mise à jour reçue de l\'utilisateur, activation en cours...');
     self.skipWaiting();
   }
 });

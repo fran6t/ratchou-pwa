@@ -81,13 +81,14 @@ class CategoriesModel extends BaseModel {
         // Ensure libelle is trimmed
         data.libelle = data.libelle.trim();
 
-        // is_mandatory defaults to false
+        // is_mandatory defaults to 0 (false)
         if (data.is_mandatory === undefined) {
-            data.is_mandatory = false;
+            data.is_mandatory = 0;
         }
 
-        if (typeof data.is_mandatory !== 'boolean') {
-            data.is_mandatory = RatchouUtils.boolean.fromSQLite(data.is_mandatory);
+        // Convert boolean to number for IndexedDB index reliability
+        if (typeof data.is_mandatory === 'boolean') {
+            data.is_mandatory = data.is_mandatory ? 1 : 0;
         }
 
         // usage_count defaults to 0
@@ -106,8 +107,9 @@ class CategoriesModel extends BaseModel {
             data.libelle = data.libelle.trim();
         }
 
-        if (data.is_mandatory !== undefined && typeof data.is_mandatory !== 'boolean') {
-            data.is_mandatory = RatchouUtils.boolean.fromSQLite(data.is_mandatory);
+        // Convert boolean to number for IndexedDB index reliability
+        if (data.is_mandatory !== undefined && typeof data.is_mandatory === 'boolean') {
+            data.is_mandatory = data.is_mandatory ? 1 : 0;
         }
     }
 
@@ -262,34 +264,27 @@ class CategoriesModel extends BaseModel {
         }
     }
 
-    /**
-     * Import from SQLite data
-     */
-    async importFromSQLite(sqliteCategories) {
-        const transformedCategories = sqliteCategories.map(RatchouUtils.transform.category);
-        return await this.bulkImport(transformedCategories);
-    }
 
     /**
      * Create default categories (seed data)
      */
     async createDefaults() {
         const defaultCategories = [
-            { libelle: 'Alimentation / Courses', is_mandatory: true },
-            { libelle: 'Logement (Loyer / Crédit)', is_mandatory: true },
-            { libelle: 'Charges / Énergie (Élec/Gaz/Eau)', is_mandatory: true },
-            { libelle: 'Internet / Téléphone', is_mandatory: true },
-            { libelle: 'Assurances', is_mandatory: true },
-            { libelle: 'Impôts / Taxes', is_mandatory: true },
-            { libelle: 'Transports (Carburant/TP)', is_mandatory: true },
-            { libelle: 'Santé (Médecin/Pharmacie/Mutuelle)', is_mandatory: true },
-            { libelle: 'Éducation / Garde', is_mandatory: false },
-            { libelle: 'Loisirs / Culture', is_mandatory: false },
-            { libelle: 'Vêtements', is_mandatory: false },
-            { libelle: 'Cadeaux / Fêtes', is_mandatory: false },
-            { libelle: 'Épargne / Placement', is_mandatory: false },
-            { libelle: 'Revenus (Salaire/Pension)', is_mandatory: false },
-            { libelle: 'Divers', is_mandatory: false }
+            { libelle: 'Alimentation / Courses', is_mandatory: 1 },
+            { libelle: 'Logement (Loyer / Crédit)', is_mandatory: 1 },
+            { libelle: 'Charges / Énergie (Élec/Gaz/Eau)', is_mandatory: 1 },
+            { libelle: 'Internet / Téléphone', is_mandatory: 1 },
+            { libelle: 'Assurances', is_mandatory: 1 },
+            { libelle: 'Impôts / Taxes', is_mandatory: 1 },
+            { libelle: 'Transports (Carburant/TP)', is_mandatory: 1 },
+            { libelle: 'Santé (Médecin/Pharmacie/Mutuelle)', is_mandatory: 1 },
+            { libelle: 'Éducation / Garde', is_mandatory: 0 },
+            { libelle: 'Loisirs / Culture', is_mandatory: 0 },
+            { libelle: 'Vêtements', is_mandatory: 0 },
+            { libelle: 'Cadeaux / Fêtes', is_mandatory: 0 },
+            { libelle: 'Épargne / Placement', is_mandatory: 0 },
+            { libelle: 'Revenus (Salaire/Pension)', is_mandatory: 0 },
+            { libelle: 'Divers', is_mandatory: 0 }
         ];
 
         // Add UUIDs and usage_count

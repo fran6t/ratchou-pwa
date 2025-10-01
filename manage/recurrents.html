@@ -18,8 +18,32 @@
     <link href="../assets/css/bootstrap.min.css" rel="stylesheet">
     <link href="../assets/css/bootstrap-icons.min.css" rel="stylesheet">
     <link href="../assets/css/app.css" rel="stylesheet">
+
+    <!-- Prevent dark mode flash -->
+    <style>
+        /* Prevent flash by setting initial colors based on system preference */
+        @media (prefers-color-scheme: dark) {
+            html { background-color: #212529; color: #dee2e6; }
+        }
+    </style>
+    <script>
+        (function() {
+            const theme = localStorage.getItem('ratchou-theme');
+            const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+
+            let resolvedTheme = 'light';
+            if (theme === 'dark' || (theme === 'auto' && prefersDark) || (!theme && prefersDark)) {
+                resolvedTheme = 'dark';
+            }
+
+            document.documentElement.setAttribute('data-bs-theme', resolvedTheme);
+            if (resolvedTheme === 'dark') {
+                document.documentElement.classList.add('dark-theme');
+            }
+        })();
+    </script>
 </head>
-<body class="bg-light">
+<body>
     <div id="loadingOverlay" class="position-fixed top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center bg-white bg-opacity-75" style="z-index: 9999; display: none !important;">
         <div class="spinner-border text-primary" role="status">
             <span class="visually-hidden">Chargement...</span>
@@ -60,18 +84,15 @@
         </div>
 
         <div id="form-container" class="card shadow-sm mb-4" style="display: none;">
-            <div class="card-header d-flex justify-content-between align-items-center">
-                <h5 class="mb-0" id="form-title">Ajout d'une récurrence</h5>
-                <div>
-                    <button type="button" class="btn btn-secondary" id="cancel-btn">Annuler</button>
-                    <button type="button" class="btn btn-danger me-2" id="delete-recurrent-btn" style="display: none;">🗑️ Supprimer</button>
-                    <button type="submit" form="recurrent-form" class="btn btn-primary">💾 Enregistrer</button>
-                </div>
-            </div>
             <div class="card-body">
                 <form id="recurrent-form">
                     <!-- Form content will be injected by JS -->
                 </form>
+            </div>
+            <div class="card-footer d-flex justify-content-end gap-2">
+                <button type="button" class="btn btn-secondary  rounded-pill" id="cancel-btn">Annuler</button>
+                <button type="button" class="btn btn-danger  rounded-pill" id="delete-recurrent-btn" style="display: none;">🗑️ Supprimer</button>
+                <button type="submit" form="recurrent-form" class="btn btn-primary rounded-pill">💾 Enregistrer</button>
             </div>
         </div>
     </div>
@@ -89,9 +110,29 @@
     <div class="modal fade" id="addPayeeModal" tabindex="-1"></div>
     <div class="modal fade" id="deleteModal" tabindex="-1"></div>
 
+    <!-- Remarque Modal -->
+    <div class="modal fade" id="remarqueModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">📝 Remarque</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <textarea class="form-control" id="remarqueText" rows="3" placeholder="Remarque optionnelle..."></textarea>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary rounded-pill" data-bs-dismiss="modal">Annuler</button>
+                    <button type="button" class="btn btn-primary rounded-pill" id="saveRemarque">💾 Enregistrer</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
 
     <script src="../assets/js/bootstrap.bundle.min.js"></script>
     <script src="../js/lib/jszip.min.js"></script>
+    <script src="../js/core/private-mode-detector.js"></script>
     <script src="../js/core/utils.js"></script>
     <script src="../js/core/indexeddb-wrapper.js"></script>
     <script src="../js/core/models/base-model.js"></script>
@@ -104,8 +145,8 @@
     <script src="../js/core/auth.js"></script>
     <script src="../js/core/ratchou-app.js"></script>
     <script src="../js/components/component-loader.js"></script>
+    <script src="../js/core/theme-manager.js"></script>
     <script src="../js/pages/recurrents.js"></script>
     <script src="../js/pwa/install.js"></script>
-    <script src="../js/pwa/persistence.js"></script>
 </body>
 </html>

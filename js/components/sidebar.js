@@ -25,13 +25,17 @@ export function generateSidebar() {
                     🏦 <strong>Comptes</strong>
                     <small class="d-block text-muted">Gérer les comptes bancaires</small>
                 </a>
-                <a href="${managePath}mouvements.html" class="list-group-item list-group-item-action">
-                    💸 <strong>Mouvements</strong>
-                    <small class="d-block text-muted">Rechercher et modifier</small>
-                </a>
                 <a href="${managePath}projection.html" class="list-group-item list-group-item-action">
                     📅 <strong>Projection financière</strong>
                     <small class="d-block text-muted">Prévision des finances</small>
+                </a>
+                <a href="${managePath}recurrents.html" class="list-group-item list-group-item-action">
+                    🔄 <strong>Récurrents</strong>
+                    <small class="d-block text-muted">Abonnements, loyers...</small>
+                </a>
+                <a href="${managePath}mouvements.html" class="list-group-item list-group-item-action">
+                    💸 <strong>Mouvements</strong>
+                    <small class="d-block text-muted">Rechercher et modifier</small>
                 </a>
                 <a href="${managePath}categories.html" class="list-group-item list-group-item-action">
                     📂 <strong>Catégories</strong>
@@ -44,10 +48,6 @@ export function generateSidebar() {
                 <a href="${managePath}type_depenses.html" class="list-group-item list-group-item-action">
                     💳 <strong>Types de paiement</strong>
                     <small class="d-block text-muted">Carte, espèces, virement...</small>
-                </a>
-                <a href="${managePath}recurrents.html" class="list-group-item list-group-item-action">
-                    🔄 <strong>Récurrents</strong>
-                    <small class="d-block text-muted">Abonnements, loyers...</small>
                 </a>
                 <a href="${managePath}export.html" class="list-group-item list-group-item-action">
                     📤 <strong>Exporter les données</strong>

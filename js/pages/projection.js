@@ -139,13 +139,14 @@ class ProjectionController {
             
             // Get current account balance
             const currentBalance = this.currentAccount ? this.currentAccount.balance : 0;
-            const currentBalanceInEuros = RatchouUtils.currency.toEuros(currentBalance);
+            const currency = this.currentAccount?.currency || 'EUR';
+            const currentBalanceInDisplayUnit = RatchouUtils.currency.fromStorageUnit(currentBalance, currency);
             
             // Get upcoming recurring expenses for the selected period
             const projection = await this.calculateFinancialProjection(days);
             
             // Display the projection
-            this.displayFinancialProjection(currentBalanceInEuros, projection, days);
+            this.displayFinancialProjection(currentBalanceInDisplayUnit, projection, days, currency);
             
         } catch (error) {
             console.error('Error loading financial projection:', error);
@@ -165,19 +166,21 @@ class ProjectionController {
         const today = new Date();
         const endDate = new Date(today);
         endDate.setDate(today.getDate() + days);
-        
-        // Get current account ID
+
+        // Get current account ID and currency
         const currentAccountId = this.currentAccount ? this.currentAccount.id : null;
         if (!currentAccountId) {
             throw new Error('Aucun compte sélectionné');
         }
-        
+
+        const accountCurrency = this.currentAccount.currency || 'EUR';
+
         // Get all future transactions for this account in the date range
         const futureTransactions = await this.getFutureTransactions(currentAccountId, today, endDate);
-        
+
         // Get all active recurring expenses for this account
         const recurringExpenses = await ratchouApp.models.recurringExpenses.getActiveByAccount(currentAccountId);
-        
+
         console.log(`Found ${recurringExpenses.length} active recurring expenses for account ${currentAccountId}:`, recurringExpenses);
         
         // Create projection array
@@ -203,32 +206,36 @@ class ProjectionController {
             });
             
             dayTransactions.forEach(transaction => {
-                const amountInEuros = RatchouUtils.currency.toEuros(transaction.amount);
+                // Transaction belongs to this account, so it uses the account's currency
+                const amountInDisplayUnit = RatchouUtils.currency.fromStorageUnit(transaction.amount, accountCurrency);
                 dayProjection.transactions.push({
                     id: transaction.id,
                     libelle: transaction.category_name || 'Transaction',
-                    amount: amountInEuros,
-                    amountInCents: transaction.amount,
+                    amount: amountInDisplayUnit,
+                    amountInStorage: transaction.amount,
+                    currency: accountCurrency,
                     type: 'existing',
-                    isPositive: amountInEuros >= 0
+                    isPositive: amountInDisplayUnit >= 0
                 });
-                dayProjection.totalAmount += amountInEuros;
+                dayProjection.totalAmount += amountInDisplayUnit;
             });
             
             // Add recurring expenses if they should execute on this day
             recurringExpenses.forEach(expense => {
                 if (this.shouldRecurringExpenseExecute(expense, date)) {
-                    console.log(`  → Adding recurring expense: ${expense.libelle} (${RatchouUtils.currency.format(expense.amount)})`);
-                    const amountInEuros = RatchouUtils.currency.toEuros(expense.amount);
+                    // Recurring expense belongs to this account, so it uses the account's currency
+                    console.log(`  → Adding recurring expense: ${expense.libelle} (${RatchouUtils.currency.formatWithCurrency(expense.amount, accountCurrency)})`);
+                    const amountInDisplayUnit = RatchouUtils.currency.fromStorageUnit(expense.amount, accountCurrency);
                     dayProjection.transactions.push({
                         id: expense.id,
                         libelle: expense.libelle,
-                        amount: amountInEuros,
-                        amountInCents: expense.amount,
+                        amount: amountInDisplayUnit,
+                        amountInStorage: expense.amount,
+                        currency: accountCurrency,
                         type: 'recurring',
-                        isPositive: amountInEuros >= 0
+                        isPositive: amountInDisplayUnit >= 0
                     });
-                    dayProjection.totalAmount += amountInEuros;
+                    dayProjection.totalAmount += amountInDisplayUnit;
                 }
             });
             
@@ -297,7 +304,7 @@ class ProjectionController {
     /**
      * Display the financial projection
      */
-    displayFinancialProjection(currentBalance, projection, days) {
+    displayFinancialProjection(currentBalance, projection, days, currency) {
         // Filter out days with no transactions (only show days with transactions)
         const daysWithTransactions = projection.filter(day => day.transactions.length > 0);
         
@@ -319,14 +326,19 @@ class ProjectionController {
             return sum + dayIncomes;
         }, 0);
 
-        // Summary at the top
+        // Summary at the top - convert display values back to storage units for formatting
+        const currentBalanceStorage = RatchouUtils.currency.toStorageUnit(currentBalance, currency);
+        const finalBalanceStorage = RatchouUtils.currency.toStorageUnit(finalBalance, currency);
+        const totalIncomesStorage = RatchouUtils.currency.toStorageUnit(totalIncomes, currency);
+        const totalExpensesStorage = RatchouUtils.currency.toStorageUnit(totalExpenses, currency);
+
         html += `
             <div class="row g-2 mb-4">
                 <div class="col-6 col-md-3">
                     <div class="card bg-primary text-white">
                         <div class="card-body text-center py-2">
                             <div class="small mb-1">💰 Solde</div>
-                            <div class="fs-6 fw-bold">${RatchouUtils.currency.format(currentBalance * 100)}</div>
+                            <div class="fs-6 fw-bold">${RatchouUtils.currency.formatWithCurrency(currentBalanceStorage, currency)}</div>
                             <div class="small opacity-75">Actuel</div>
                         </div>
                     </div>
@@ -335,7 +347,7 @@ class ProjectionController {
                     <div class="card ${finalBalanceClass === 'text-success' ? 'bg-success' : 'bg-danger'} text-white">
                         <div class="card-body text-center py-2">
                             <div class="small mb-1">🎯 Solde final</div>
-                            <div class="fs-6 fw-bold">${RatchouUtils.currency.format(finalBalance * 100)}</div>
+                            <div class="fs-6 fw-bold">${RatchouUtils.currency.formatWithCurrency(finalBalanceStorage, currency)}</div>
                             <div class="small opacity-75">Dans ${days} jours</div>
                         </div>
                     </div>
@@ -344,7 +356,7 @@ class ProjectionController {
                     <div class="card bg-success text-white">
                         <div class="card-body text-center py-2">
                             <div class="small mb-1">📈 Recettes</div>
-                            <div class="fs-6 fw-bold">${RatchouUtils.currency.format(totalIncomes * 100)}</div>
+                            <div class="fs-6 fw-bold">${RatchouUtils.currency.formatWithCurrency(totalIncomesStorage, currency)}</div>
                             <div class="small opacity-75">Sur ${days} jours</div>
                         </div>
                     </div>
@@ -353,7 +365,7 @@ class ProjectionController {
                     <div class="card bg-danger text-white">
                         <div class="card-body text-center py-2">
                             <div class="small mb-1">📉 Dépenses</div>
-                            <div class="fs-6 fw-bold">${RatchouUtils.currency.format(totalExpenses * 100)}</div>
+                            <div class="fs-6 fw-bold">${RatchouUtils.currency.formatWithCurrency(totalExpensesStorage, currency)}</div>
                             <div class="small opacity-75">Sur ${days} jours</div>
                         </div>
                     </div>
@@ -378,14 +390,15 @@ class ProjectionController {
             daysWithTransactions.forEach((day, index) => {
                 const dayBalance = currentBalance + projection.slice(0, projection.indexOf(day) + 1).reduce((sum, d) => sum + d.totalAmount, 0);
                 const dayBalanceClass = dayBalance >= 0 ? 'text-success' : 'text-danger';
-                
+                const dayBalanceStorage = RatchouUtils.currency.toStorageUnit(dayBalance, currency);
+
                 const isToday = day.isToday;
-                const dateStr = day.date.toLocaleDateString('fr-FR', { 
-                    weekday: 'short', 
-                    day: 'numeric', 
-                    month: 'short' 
+                const dateStr = day.date.toLocaleDateString('fr-FR', {
+                    weekday: 'short',
+                    day: 'numeric',
+                    month: 'short'
                 });
-                
+
                 html += `
                     <div class="timeline-item ${isToday ? 'timeline-today' : ''}">
                         <div class="timeline-marker ${isToday ? 'timeline-marker-today' : ''}">
@@ -396,7 +409,7 @@ class ProjectionController {
                                 <h6 class="mb-0 ${isToday ? 'text-primary' : ''}">${dateStr} ${isToday ? '(Aujourd\'hui)' : ''}</h6>
                                 <div class="text-end">
                                     <div class="fw-bold ${dayBalanceClass}">
-                                        ${RatchouUtils.currency.format(dayBalance * 100)}
+                                        ${RatchouUtils.currency.formatWithCurrency(dayBalanceStorage, currency)}
                                     </div>
                                     <small class="text-muted">Solde après</small>
                                 </div>
@@ -408,7 +421,7 @@ class ProjectionController {
                     const amountClass = transaction.isPositive ? 'text-success' : 'text-danger';
                     const typeIcon = transaction.type === 'recurring' ? '🔄' : '💸';
                     const typeLabel = transaction.type === 'recurring' ? 'Récurrent' : 'Planifié';
-                    
+
                     html += `
                         <div class="transaction-item d-flex justify-content-between align-items-center">
                             <div class="flex-grow-1">
@@ -417,7 +430,7 @@ class ProjectionController {
                             </div>
                             <div class="text-end">
                                 <span class="fw-bold ${amountClass}">
-                                    ${RatchouUtils.currency.format(transaction.amountInCents)}
+                                    ${RatchouUtils.currency.formatWithCurrency(transaction.amountInStorage, currency)}
                                 </span>
                             </div>
                         </div>
@@ -435,7 +448,7 @@ class ProjectionController {
             
             // Final info
             html += `
-                <div class="mt-4 p-3 bg-light rounded">
+                <div class="mt-4 p-3 bg-body-secondary rounded">
                     <small class="text-muted">
                         <i class="me-1">💡</i>Cette projection inclut toutes les transactions futures plannifiées sur le compte actuel, 
                         ainsi que les dépenses récurrentes programmées. Les montants sont indicatifs et peuvent varier.
@@ -456,15 +469,16 @@ class ProjectionController {
      */
     updateAccountDisplay() {
         if (!this.currentAccount) return;
-        
+
         document.getElementById('currentAccountName').textContent = this.currentAccount.nom_compte;
-        
-        const balance = RatchouUtils.currency.format(this.currentAccount.balance);
+
+        const currency = this.currentAccount.currency || 'EUR';
+        const balance = RatchouUtils.currency.formatWithCurrency(this.currentAccount.balance, currency);
         const balanceElement = document.getElementById('currentAccountBalance');
         balanceElement.textContent = balance;
-        
+
         // Set color based on balance
-        balanceElement.className = 'account-balance ' + 
+        balanceElement.className = 'account-balance ' +
             (this.currentAccount.balance >= 0 ? 'text-success' : 'text-danger');
     }
 
@@ -521,13 +535,14 @@ class ProjectionController {
             }
 
             accountsList.innerHTML = freshAccounts.map(account => {
-                const balance = RatchouUtils.currency.format(account.balance);
+                const accountCurrency = account.currency || 'EUR';
+                const balance = RatchouUtils.currency.formatWithCurrency(account.balance, accountCurrency);
                 const isSelected = account.id === this.currentAccount.id;
                 const balanceClass = account.balance >= 0 ? 'text-success' : 'text-danger';
-                
+
                 return `
-                    <div class="account-item d-flex justify-content-between align-items-center p-3 border-bottom ${isSelected ? 'bg-primary bg-opacity-10' : ''}" 
-                         style="cursor: pointer;" 
+                    <div class="account-item d-flex justify-content-between align-items-center p-3 border-bottom ${isSelected ? 'bg-primary bg-opacity-10' : ''}"
+                         style="cursor: pointer;"
                          data-account-id="${account.id}">
                         <div>
                             <strong>${account.nom_compte}</strong>
@@ -573,7 +588,6 @@ class ProjectionController {
             await this.loadFinancialProjection(); // Reload projection for new account
             
             this.accountSelectModal.hide();
-            this.showSuccess(`Compte "${account.nom_compte}" sélectionné`);
             
         } catch (error) {
             console.error('Error selecting account:', error);
@@ -595,10 +609,14 @@ class ProjectionController {
             if (this.currentAccount) {
                 const currentBalanceSpan = document.getElementById('currentBalance');
                 const newBalanceInput = document.getElementById('newBalance');
-                
-                const balanceInEuros = RatchouUtils.currency.toEuros(this.currentAccount.balance);
-                currentBalanceSpan.textContent = RatchouUtils.currency.format(this.currentAccount.balance);
-                newBalanceInput.value = balanceInEuros.toFixed(2);
+
+                const currency = this.currentAccount.currency || 'EUR';
+                const balanceInDisplayUnit = RatchouUtils.currency.fromStorageUnit(this.currentAccount.balance, currency);
+                currentBalanceSpan.textContent = RatchouUtils.currency.formatWithCurrency(this.currentAccount.balance, currency);
+
+                // Determine decimal places based on currency
+                const decimals = currency === 'BTC' ? 8 : 2;
+                newBalanceInput.value = balanceInDisplayUnit.toFixed(decimals);
                 newBalanceInput.select();
             }
         });
@@ -609,31 +627,33 @@ class ProjectionController {
      */
     async handleBalanceCorrection() {
         try {
-            const newBalanceEuros = parseFloat(document.getElementById('newBalance').value);
-            
-            if (isNaN(newBalanceEuros)) {
+            const newBalanceDisplayUnit = parseFloat(document.getElementById('newBalance').value);
+
+            if (isNaN(newBalanceDisplayUnit)) {
                 this.showError('Montant invalide');
                 return;
             }
 
+            const currency = this.currentAccount.currency || 'EUR';
+            const newBalanceStorage = RatchouUtils.currency.toStorageUnit(newBalanceDisplayUnit, currency);
+
             const result = await ratchouApp.models.accounts.correctBalance(
-                this.currentAccount.id, 
-                Math.round(newBalanceEuros * 100) // Convert to centimes
+                this.currentAccount.id,
+                newBalanceStorage
             );
 
             if (result.success) {
                 // Update current account balance
-                this.currentAccount.balance = Math.round(newBalanceEuros * 100);
+                this.currentAccount.balance = newBalanceStorage;
                 this.updateAccountDisplay();
                 this.balanceModal.hide();
-                this.showSuccess('Solde mis à jour avec succès');
-                
+
                 // Reload projection with updated balance
                 await this.loadFinancialProjection();
             } else {
                 this.showError('Erreur: ' + result.message);
             }
-            
+
         } catch (error) {
             console.error('Error updating balance:', error);
             this.showError('Erreur de mise à jour: ' + error.message);

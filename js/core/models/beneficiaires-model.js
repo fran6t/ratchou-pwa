@@ -98,11 +98,11 @@ class PayeesModel extends BaseModel {
     async delete(payeeId) {
         try {
             console.log(`Starting payee dissociation for payee: ${payeeId}`);
-            
+
             // 1. Get all transactions associated with this payee
             const transactions = await ratchouApp.models.transactions.getByPayee(payeeId);
             console.log(`Found ${transactions.length} transactions to dissociate`);
-            
+
             // 2. Dissociate all transactions (set payee_id to null)
             for (const transaction of transactions) {
                 console.log(`Dissociating transaction: ${transaction.id}`);
@@ -114,14 +114,14 @@ class PayeesModel extends BaseModel {
                     return RatchouUtils.error.validation(`Erreur lors de la dissociation de la transaction ${transaction.id}`);
                 }
             }
-            
+
             console.log('All transactions dissociated successfully');
-            
+
             // 3. Also check and dissociate recurring expenses if they exist
             try {
                 const recurringExpenses = await ratchouApp.models.recurringExpenses.getByPayee(payeeId);
                 console.log(`Found ${recurringExpenses.length} recurring expenses to dissociate`);
-                
+
                 for (const recurring of recurringExpenses) {
                     console.log(`Dissociating recurring expense: ${recurring.id}`);
                     const updateResult = await ratchouApp.models.recurringExpenses.update(recurring.id, {
@@ -135,28 +135,118 @@ class PayeesModel extends BaseModel {
             } catch (recurringError) {
                 console.warn('Could not check recurring expenses (possibly no getByPayee method):', recurringError);
             }
-            
+
             // 4. Now safely soft delete the payee
             console.log('Proceeding with payee soft delete');
             const deleteResult = await super.delete(payeeId);
-            
+
             if (deleteResult.success) {
                 console.log('Payee deleted successfully with full dissociation');
                 return RatchouUtils.error.success('Bénéficiaire supprimé avec succès. Les mouvements associés ont été dissociés.');
             } else {
                 return deleteResult;
             }
-            
+
         } catch (error) {
             console.error('Error during payee dissociation:', error);
             return RatchouUtils.error.handleIndexedDBError(error, 'suppression avec dissociation');
         }
     }
 
-    async importFromSQLite(sqlitePayees) {
-        const transformed = sqlitePayees.map(RatchouUtils.transform.payee);
-        return await this.bulkImport(transformed);
+    /**
+     * Merge two payees: reassign all transactions from mergePayeeId to keepPayeeId,
+     * sum usage counts, and delete the merged payee
+     */
+    async merge(keepPayeeId, mergePayeeId) {
+        try {
+            console.log(`Starting payee merge: keeping ${keepPayeeId}, merging ${mergePayeeId}`);
+
+            // 1. Verify both payees exist
+            const keepPayee = await this.getById(keepPayeeId);
+            const mergePayee = await this.getById(mergePayeeId);
+
+            if (!keepPayee) {
+                return RatchouUtils.error.validation('Le bénéficiaire à conserver est introuvable');
+            }
+
+            if (!mergePayee) {
+                return RatchouUtils.error.validation('Le bénéficiaire à fusionner est introuvable');
+            }
+
+            console.log(`Merging "${mergePayee.libelle}" into "${keepPayee.libelle}"`);
+
+            // 2. Get all transactions from the payee to be merged
+            const transactionsToReassign = await ratchouApp.models.transactions.getByPayee(mergePayeeId);
+            console.log(`Found ${transactionsToReassign.length} transactions to reassign`);
+
+            // 3. Reassign all transactions to the kept payee
+            for (const transaction of transactionsToReassign) {
+                console.log(`Reassigning transaction ${transaction.id} from ${mergePayeeId} to ${keepPayeeId}`);
+                const updateResult = await ratchouApp.models.transactions.update(transaction.id, {
+                    payee_id: keepPayeeId
+                });
+                if (!updateResult.success) {
+                    console.error(`Failed to reassign transaction ${transaction.id}:`, updateResult.message);
+                    return RatchouUtils.error.validation(`Erreur lors de la réassignation de la transaction ${transaction.id}`);
+                }
+            }
+
+            console.log('All transactions reassigned successfully');
+
+            // 4. Also reassign recurring expenses if they exist
+            try {
+                const recurringExpenses = await ratchouApp.models.recurringExpenses.getByPayee(mergePayeeId);
+                console.log(`Found ${recurringExpenses.length} recurring expenses to reassign`);
+
+                for (const recurring of recurringExpenses) {
+                    console.log(`Reassigning recurring expense ${recurring.id} from ${mergePayeeId} to ${keepPayeeId}`);
+                    const updateResult = await ratchouApp.models.recurringExpenses.update(recurring.id, {
+                        payee_id: keepPayeeId
+                    });
+                    if (!updateResult.success) {
+                        console.error(`Failed to reassign recurring expense ${recurring.id}:`, updateResult.message);
+                        return RatchouUtils.error.validation(`Erreur lors de la réassignation de la dépense récurrente ${recurring.id}`);
+                    }
+                }
+            } catch (recurringError) {
+                console.warn('Could not check recurring expenses (possibly no getByPayee method):', recurringError);
+            }
+
+            // 5. Update the kept payee's usage count (sum both counts)
+            const newUsageCount = (keepPayee.usage_count || 0) + (mergePayee.usage_count || 0);
+            console.log(`Updating usage count: ${keepPayee.usage_count || 0} + ${mergePayee.usage_count || 0} = ${newUsageCount}`);
+
+            const updateResult = await super.update(keepPayeeId, {
+                usage_count: newUsageCount
+            });
+
+            if (!updateResult.success) {
+                console.error('Failed to update usage count:', updateResult.message);
+                return RatchouUtils.error.validation('Erreur lors de la mise à jour du compteur d\'usage');
+            }
+
+            // 6. Delete the merged payee (hard delete since we've reassigned everything)
+            console.log('Deleting merged payee');
+            const deleteResult = await super.delete(mergePayeeId);
+
+            if (!deleteResult.success) {
+                console.error('Failed to delete merged payee:', deleteResult.message);
+                return RatchouUtils.error.validation('Erreur lors de la suppression du bénéficiaire fusionné');
+            }
+
+            console.log('Payee merge completed successfully');
+
+            return RatchouUtils.error.success(
+                `Fusion réussie ! "${mergePayee.libelle}" a été fusionné avec "${keepPayee.libelle}". ` +
+                `${transactionsToReassign.length} transaction(s) ont été réassignées.`
+            );
+
+        } catch (error) {
+            console.error('Error during payee merge:', error);
+            return RatchouUtils.error.handleIndexedDBError(error, 'fusion des bénéficiaires');
+        }
     }
+
 
     async createDefaults() {
         const defaults = [

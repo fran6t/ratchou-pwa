@@ -5,18 +5,26 @@ class PWAInstaller {
         this.isInstalled = false;
         this.updateAvailable = false;
         this.registration = null;
-        
+        this.countdownInterval = null;
+        this.updateCountdownInterval = null;
+        this.updateInProgress = false;
+
         this.init();
     }
 
     async init() {
         if ('serviceWorker' in navigator) {
             try {
-                // Register service worker
-                const swPath = `${location.origin}/ratchou/sw.js`; // chemin fixe correct
-                const scopePath = '/ratchou/';
+                // --- Logique de chemin robuste et simplifiée ---
+                // Le Service Worker est à la racine, on utilise un chemin absolu.
+                // ⚠️ IMPORTANT : CHEMINS PWA (voir aussi sw.js ligne ~17)
+                // DEV:  '/ratchou/sw.js' et '/ratchou/'
+                // PROD: '/sw.js' et '/'
+                const swPath = '/sw.js';
+                const scopePath = '/';
+                // --- Fin de la logique de chemin ---
 
-                console.log(`[PWA] SW enregistré pour ${swPath} avec scope ${scopePath}`);
+                console.log(`[PWA] SW path: ${swPath}, scope: ${scopePath}`);
                 const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
                 console.log('[PWA] Mode:', isStandalone ? 'Standalone (PWA)' : 'Navigateur (onglet)');
                 
@@ -65,7 +73,8 @@ class PWAInstaller {
         // Listen for messages from service worker
         navigator.serviceWorker.addEventListener('message', event => {
             if (event.data && event.data.type === 'SW_UPDATED') {
-                window.location.reload();
+                // Use soft reload for better UX
+                this.softReload('Service Worker mis à jour, rechargement...', 500);
             }
         });
     }
@@ -99,112 +108,113 @@ class PWAInstaller {
     }
 
     createInstallUI() {
-        // Create install button container if it doesn't exist
-        if (!document.getElementById('pwa-install-container')) {
-            const installContainer = document.createElement('div');
-            installContainer.id = 'pwa-install-container';
-            installContainer.className = 'position-fixed bottom-0 start-50 translate-middle-x mb-3';
-            installContainer.style.zIndex = '1050';
-            installContainer.style.display = 'none';
-            
-            installContainer.innerHTML = `
-                <div class="card border-0 shadow-lg" style="min-width: 300px;">
-                    <div class="card-body text-center p-3">
-                        <div class="mb-2">
-                            <img src="./assets/icons/icon-192.png" alt="Ratchou" width="48" height="48">
-                        </div>
-                        <h6 class="card-title mb-2">Installer Ratchou</h6>
-                        <p class="card-text small text-muted mb-3">
-                            Accédez rapidement à vos finances depuis votre écran d'accueil
-                        </p>
-                        <div class="d-flex gap-2 justify-content-center">
-                            <button id="pwa-install-btn" class="btn btn-primary btn-sm">
-                                <i class="bi bi-download"></i> Installer
-                            </button>
-                            <button id="pwa-install-close" class="btn btn-outline-secondary btn-sm">
-                                Plus tard
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            `;
-            
-            document.body.appendChild(installContainer);
-            
-            // Bind events
-            document.getElementById('pwa-install-btn').addEventListener('click', () => {
-                this.promptInstall();
-            });
-            
-            document.getElementById('pwa-install-close').addEventListener('click', () => {
-                this.hideInstallPrompt();
-            });
-        }
-
-        // Create update notification container
-        if (!document.getElementById('pwa-update-container')) {
-            const isMobile = window.innerWidth <= 576;
-            const updateContainer = document.createElement('div');
-            updateContainer.id = 'pwa-update-container';
-            
-            if (isMobile) {
-                // Classes for a bottom banner on mobile
-                updateContainer.className = 'position-fixed bottom-0 start-0 w-100';
-            } else {
-                // Original classes for a top toast on desktop
-                updateContainer.className = 'position-fixed top-0 start-50 translate-middle-x mt-3';
-            }
-            
-            updateContainer.style.zIndex = '1055';
-            updateContainer.style.display = 'none';
-            
-            const alertClasses = isMobile 
-                ? 'alert alert-info alert-dismissible shadow-lg text-center mb-0' 
-                : 'alert alert-info alert-dismissible shadow-lg';
-            
-            const alertStyles = isMobile 
-                ? 'style="border-radius: 0; border-top-left-radius: 0.5rem; border-top-right-radius: 0.5rem;"' 
-                : '';
-
-            updateContainer.innerHTML = `
-                <div class="${alertClasses}" role="alert" ${alertStyles}>
-                    <i class="bi bi-arrow-clockwise me-2"></i>
-                    <strong>Mise à jour disponible!</strong>
-                    <button id="pwa-update-btn" class="btn btn-info btn-sm ms-2">
-                        Mettre à jour
-                    </button>
-                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                </div>
-            `;
-            
-            document.body.appendChild(updateContainer);
-            
-            // Bind update event
-            document.getElementById('pwa-update-btn').addEventListener('click', () => {
-                this.applyUpdate();
-            });
-        }
+        // Plus besoin de créer des conteneurs flottants
+        // La zone PWA est maintenant intégrée dans le dashboard
+        console.log('[PWA] Using integrated notification zone in dashboard');
     }
 
     showInstallPrompt() {
         if (this.isInstalled) return;
-        
-        const container = document.getElementById('pwa-install-container');
-        if (container) {
-            container.style.display = 'block';
-            // Auto-hide after 10 seconds
-            setTimeout(() => {
-                if (container.style.display === 'block') {
-                    this.hideInstallPrompt();
+
+        // Afficher l'incitation à l'installation uniquement sur index.html
+        const currentPage = window.location.pathname;
+        const isIndexPage = currentPage.endsWith('index.html') || currentPage.endsWith('/ratchou/') || currentPage === '/ratchou' || currentPage.endsWith('/');
+
+        if (!isIndexPage) {
+            console.log('[PWA] Install prompt skipped - not on index page');
+            return;
+        }
+
+        const zone = document.getElementById('pwa-notification-zone');
+        if (zone) {
+            zone.innerHTML = `
+                <div class="mb-4 p-3 rounded" style="
+                    border-left: 4px solid #0d6efd;
+                    background: linear-gradient(135deg, #f8f9ff 0%, #e7f3ff 100%);
+                    border: 1px solid #b8daff;
+                ">
+                    <div class="d-flex align-items-center justify-content-between">
+                        <div class="flex-grow-1">
+                            <div class="d-flex align-items-center mb-2">
+                                <i class="bi bi-info-circle-fill text-primary me-2"></i>
+                                <strong>📱 Installer Ratchou</strong>
+                                <small class="badge bg-secondary ms-2" id="pwa-countdown">15s</small>
+                            </div>
+                            <p class="mb-2 small text-muted">
+                                Profitez d'un accès rapide par une icône sur votre écran d'accueil
+                            </p>
+                            <div class="d-flex gap-2">
+                                <button id="pwa-install-btn" class="btn btn-primary btn-sm">
+                                    <i class="bi bi-download"></i> Installer
+                                </button>
+                                <button id="pwa-install-close" class="btn btn-outline-secondary btn-sm">
+                                    Plus tard
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            zone.style.display = 'block';
+
+            // Bind events
+            document.getElementById('pwa-install-btn').addEventListener('click', () => {
+                this.promptInstall();
+            });
+
+            document.getElementById('pwa-install-close').addEventListener('click', () => {
+                this.hideInstallPrompt();
+            });
+
+            // Auto-hide with countdown after 15 seconds
+            let countdown = 15;
+            const countdownBadge = document.getElementById('pwa-countdown');
+
+            this.countdownInterval = setInterval(() => {
+                countdown--;
+                if (countdownBadge) {
+                    countdownBadge.textContent = countdown + 's';
+                    if (countdown <= 5) {
+                        countdownBadge.className = 'badge bg-warning ms-2';
+                    }
                 }
-            }, 10000);
+
+                if (countdown <= 0) {
+                    clearInterval(this.countdownInterval);
+                    this.countdownInterval = null;
+                    if (zone.style.display === 'block' && zone.innerHTML.includes('Installer Ratchou')) {
+                        this.hideInstallPrompt();
+                    }
+                }
+            }, 1000);
         }
     }
 
     hideInstallPrompt() {
-        const container = document.getElementById('pwa-install-container');
-        if (container) {
-            container.style.display = 'none';
+        // Clear countdown if running
+        if (this.countdownInterval) {
+            clearInterval(this.countdownInterval);
+            this.countdownInterval = null;
+        }
+
+        const zone = document.getElementById('pwa-notification-zone');
+        if (zone) {
+            zone.style.display = 'none';
+            zone.innerHTML = '';
+        }
+    }
+
+    hideUpdateNotification() {
+        // Clear update countdown if running
+        if (this.updateCountdownInterval) {
+            clearInterval(this.updateCountdownInterval);
+            this.updateCountdownInterval = null;
+        }
+
+        const zone = document.getElementById('pwa-notification-zone');
+        if (zone) {
+            zone.style.display = 'none';
+            zone.innerHTML = '';
         }
     }
 
@@ -215,31 +225,127 @@ class PWAInstaller {
         }
 
         try {
+            // Provide immediate visual feedback
+            const installBtn = document.getElementById('pwa-install-btn');
+            if (installBtn) {
+                installBtn.disabled = true;
+                installBtn.innerHTML = `
+                    <span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
+                    Préparation...
+                `;
+            }
+
             // Show the install prompt
             this.deferredPrompt.prompt();
-            
+
             // Wait for user choice
             const result = await this.deferredPrompt.userChoice;
             console.log('[PWA] User choice:', result.outcome);
-            
+
             if (result.outcome === 'accepted') {
                 console.log('[PWA] User accepted install');
+                // Show success feedback
+                if (installBtn) {
+                    installBtn.innerHTML = `
+                        <i class="bi bi-check-circle me-1"></i>
+                        Installation en cours...
+                    `;
+                }
+                // Give user feedback before hiding
+                setTimeout(() => {
+                    this.hideInstallPrompt();
+                }, 1500);
             } else {
                 console.log('[PWA] User dismissed install');
+                this.hideInstallPrompt();
             }
-            
+
             this.deferredPrompt = null;
-            this.hideInstallPrompt();
-            
+
         } catch (error) {
             console.error('[PWA] Install prompt failed:', error);
+            // Reset button on error
+            const installBtn = document.getElementById('pwa-install-btn');
+            if (installBtn) {
+                installBtn.disabled = false;
+                installBtn.innerHTML = `<i class="bi bi-download"></i> Installer`;
+            }
         }
     }
 
     showUpdateNotification() {
-        const container = document.getElementById('pwa-update-container');
-        if (container) {
-            container.style.display = 'block';
+        // Afficher les notifications de mise à jour uniquement sur index.html
+        const currentPage = window.location.pathname;
+        const isIndexPage = currentPage.endsWith('index.html') || currentPage.endsWith('/ratchou/') || currentPage === '/ratchou' || currentPage.endsWith('/');
+
+        if (!isIndexPage) {
+            console.log('[PWA] Update notification skipped - not on index page');
+            return;
+        }
+
+        const zone = document.getElementById('pwa-notification-zone');
+        if (zone) {
+            zone.innerHTML = `
+                <div class="mb-4 p-3 rounded" style="
+                    border-left: 4px solid #17a2b8;
+                    background: linear-gradient(135deg, #f0fdff 0%, #e3f8fd 100%);
+                    border: 1px solid #b3dde6;
+                ">
+                    <div class="d-flex align-items-center justify-content-between">
+                        <div class="flex-grow-1">
+                            <div class="d-flex align-items-center mb-2">
+                                <i class="bi bi-arrow-clockwise me-2 text-info"></i>
+                                <strong>🔄 Mise à jour disponible!</strong>
+                                <small class="badge bg-info ms-2" id="pwa-update-countdown">15s</small>
+                            </div>
+                            <p class="mb-2 small text-muted">
+                                Une nouvelle version de Ratchou est prête à être installée
+                            </p>
+                            <div class="d-flex gap-2">
+                                <button id="pwa-update-btn" class="btn btn-info btn-sm">
+                                    <i class="bi bi-arrow-clockwise"></i> Mettre à jour
+                                </button>
+                                <button id="pwa-update-close" class="btn btn-outline-secondary btn-sm">
+                                    Plus tard
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            zone.style.display = 'block';
+
+            // Bind events
+            document.getElementById('pwa-update-btn').addEventListener('click', () => {
+                this.applyUpdate();
+            });
+
+            document.getElementById('pwa-update-close').addEventListener('click', () => {
+                this.hideUpdateNotification();
+            });
+
+            // Décompte de 15 secondes avec changement de couleur à 5s
+            let countdown = 15;
+            const countdownBadge = document.getElementById('pwa-update-countdown');
+
+            this.updateCountdownInterval = setInterval(() => {
+                countdown--;
+                if (countdownBadge) {
+                    countdownBadge.textContent = countdown + 's';
+                    if (countdown <= 5) {
+                        countdownBadge.className = 'badge bg-warning ms-2';
+                    }
+                }
+
+                if (countdown <= 0) {
+                    clearInterval(this.updateCountdownInterval);
+                    this.updateCountdownInterval = null;
+                    // Après le décompte, on garde la notification mais on enlève le badge
+                    if (countdownBadge) {
+                        countdownBadge.style.display = 'none';
+                    }
+                }
+            }, 1000);
         }
     }
 
@@ -249,52 +355,183 @@ class PWAInstaller {
             return;
         }
 
-        // Provide visual feedback
+        // Clear any countdown still running
+        if (this.updateCountdownInterval) {
+            clearInterval(this.updateCountdownInterval);
+            this.updateCountdownInterval = null;
+        }
+
+        // Provide immediate visual feedback
         const updateButton = document.getElementById('pwa-update-btn');
+        const updateClose = document.getElementById('pwa-update-close');
+        const countdownBadge = document.getElementById('pwa-update-countdown');
+
         if (updateButton) {
             updateButton.disabled = true;
             updateButton.innerHTML = `
-                <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
-                Mise à jour...
+                <span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
+                Préparation...
             `;
         }
 
+        // Disable close button during update
+        if (updateClose) {
+            updateClose.disabled = true;
+            updateClose.style.opacity = '0.5';
+        }
+
+        // Hide countdown badge
+        if (countdownBadge) {
+            countdownBadge.style.display = 'none';
+        }
+
+        // Mark update as in progress
+        this.updateInProgress = true;
+        console.log('[PWA] Demande de mise à jour utilisateur, envoi du signal au service worker...');
+
         // Tell the waiting service worker to skip waiting
         this.registration.waiting.postMessage({ type: 'SKIP_WAITING' });
-        
+
+        // Update progress feedback
+        let reloadExecuted = false;
+
+        // Update feedback after a moment to show progress
+        setTimeout(() => {
+            if (updateButton && !reloadExecuted) {
+                updateButton.innerHTML = `
+                    <span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
+                    Installation en cours...
+                `;
+            }
+        }, 800);
+
+        // More feedback
+        setTimeout(() => {
+            if (updateButton && !reloadExecuted) {
+                updateButton.innerHTML = `
+                    <span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
+                    Application des changements...
+                `;
+            }
+        }, 2000);
+
         // The 'controllerchange' event will fire when the new service worker has taken control.
-        // We listen for that event to safely reload the page.
         navigator.serviceWorker.addEventListener('controllerchange', () => {
-            window.location.reload();
+            if (!reloadExecuted) {
+                reloadExecuted = true;
+                console.log('[PWA] Service worker activé, préparation du rechargement...');
+
+                // Show final message before reload
+                if (updateButton) {
+                    updateButton.innerHTML = `
+                        <i class="bi bi-check-circle me-1"></i>
+                        Mise à jour terminée!
+                    `;
+                }
+
+                // Use soft reload with better UX
+                setTimeout(() => {
+                    this.softReload('Mise à jour appliquée, rechargement de l\'application...', 500);
+                }, 1200);
+            }
         });
-        
-        // As a fallback, reload after a short delay if controllerchange doesn't fire
+
+        // Fallback timeout in case controllerchange doesn't fire quickly
+        setTimeout(() => {
+            if (!reloadExecuted && updateButton) {
+                console.log('[PWA] Timeout atteint, rechargement forcé...');
+                updateButton.innerHTML = `
+                    <i class="bi bi-arrow-clockwise me-1"></i>
+                    Finalisation...
+                `;
+                setTimeout(() => {
+                    this.softReload('Finalisation de la mise à jour...', 300);
+                }, 500);
+            }
+        }, 8000);
+    }
+
+    /**
+     * Soft reload with user feedback to avoid crash impression
+     */
+    softReload(message = 'Mise à jour terminée, rechargement...', delay = 1000) {
+        console.log('[PWA] Performing soft reload:', message);
+
+        // Show loading overlay if available
+        const loadingOverlay = document.getElementById('loadingOverlay');
+        if (loadingOverlay) {
+            loadingOverlay.style.display = 'flex';
+            const loadingMessage = document.getElementById('loadingMessage');
+            if (loadingMessage) {
+                loadingMessage.textContent = message;
+            }
+        } else {
+            // Create a temporary overlay if none exists
+            const overlay = document.createElement('div');
+            overlay.style.cssText = `
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: rgba(0, 0, 0, 0.8);
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                z-index: 9999;
+                color: white;
+                font-family: system-ui, -apple-system, sans-serif;
+                font-size: 16px;
+            `;
+            overlay.innerHTML = `
+                <div style="text-align: center;">
+                    <div class="spinner-border text-light mb-3" role="status">
+                        <span class="visually-hidden">Chargement...</span>
+                    </div>
+                    <div>${message}</div>
+                </div>
+            `;
+            document.body.appendChild(overlay);
+        }
+
         setTimeout(() => {
             window.location.reload();
-        }, 3000);
+        }, delay);
     }
 
     showInstallSuccessMessage() {
-        // Show a toast or temporary message
-        const toast = document.createElement('div');
-        toast.className = 'position-fixed top-0 start-50 translate-middle-x mt-3';
-        toast.style.zIndex = '1060';
-        toast.innerHTML = `
-            <div class="alert alert-success alert-dismissible shadow-lg" role="alert">
-                <i class="bi bi-check-circle me-2"></i>
-                <strong>Ratchou installé avec succès!</strong>
-                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-            </div>
-        `;
-        
-        document.body.appendChild(toast);
-        
-        // Auto-remove after 5 seconds
-        setTimeout(() => {
-            if (toast.parentNode) {
-                toast.parentNode.removeChild(toast);
-            }
-        }, 5000);
+        const zone = document.getElementById('pwa-notification-zone');
+        if (zone) {
+            zone.innerHTML = `
+                <div class="mb-4 p-3 rounded" style="
+                    border-left: 4px solid #28a745;
+                    background: linear-gradient(135deg, #f8fff8 0%, #e8f5e8 100%);
+                    border: 1px solid #b8e6b8;
+                ">
+                    <div class="d-flex align-items-center justify-content-between">
+                        <div class="flex-grow-1">
+                            <div class="d-flex align-items-center mb-2">
+                                <i class="bi bi-check-circle me-2 text-success"></i>
+                                <strong>🎉 Ratchou installé avec succès!</strong>
+                            </div>
+                            <small class="text-muted">L'application est maintenant disponible sur votre écran d'accueil</small>
+                        </div>
+                        <button type="button" class="btn btn-outline-secondary btn-sm" onclick="this.closest('#pwa-notification-zone').style.display='none'" aria-label="Fermer">
+                            ×
+                        </button>
+                    </div>
+                </div>
+            `;
+            zone.style.display = 'block';
+
+            // Auto-hide after 5 seconds
+            setTimeout(() => {
+                if (zone && zone.innerHTML.includes('installé avec succès')) {
+                    zone.style.display = 'none';
+                    zone.innerHTML = '';
+                }
+            }, 5000);
+        }
     }
 
     // Public method to manually trigger install check

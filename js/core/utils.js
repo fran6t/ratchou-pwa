@@ -8,19 +8,54 @@ class RatchouUtils {
      * Currency conversion utilities
      */
     static currency = {
-        // Convert euros (float) to cents (integer) for IndexedDB storage
+        // Convert amount to storage unit based on currency
+        // EUR/USD: cents (x100), BTC: satoshis (x100000000)
+        toStorageUnit(amount, currency = 'EUR') {
+            if (amount === null || amount === undefined) return 0;
+            const numAmount = parseFloat(amount);
+
+            if (currency === 'BTC') {
+                // Bitcoin: store as satoshis (8 decimals)
+                return Math.round(numAmount * 100000000);
+            } else {
+                // EUR/USD: store as cents (2 decimals)
+                return Math.round(numAmount * 100);
+            }
+        },
+
+        // Convert storage unit back to amount based on currency
+        fromStorageUnit(stored, currency = 'EUR') {
+            if (stored === null || stored === undefined) return 0;
+
+            if (currency === 'BTC') {
+                // Bitcoin: stored as satoshis
+                return stored / 100000000;
+            } else {
+                // EUR/USD: stored as cents
+                return stored / 100;
+            }
+        },
+
+        // Legacy aliases for backward compatibility
         toCents(euroAmount) {
-            if (euroAmount === null || euroAmount === undefined) return 0;
-            return Math.round(parseFloat(euroAmount) * 100);
+            return this.toStorageUnit(euroAmount, 'EUR');
         },
 
-        // Convert cents (integer) back to euros (float)
         toEuros(cents) {
-            if (cents === null || cents === undefined) return 0;
-            return cents / 100;
+            return this.fromStorageUnit(cents, 'EUR');
         },
 
-        // Format cents as currency string for display
+        // Get currency symbol
+        getSymbol(currency) {
+            const symbols = {
+                'EUR': '€',
+                'USD': '$',
+                'BTC': '₿'
+            };
+            return symbols[currency] || '€';
+        },
+
+        // Format cents as currency string for display (EUR only - legacy)
         format(cents, locale = 'fr-FR') {
             const euros = this.toEuros(cents);
             return new Intl.NumberFormat(locale, {
@@ -29,6 +64,32 @@ class RatchouUtils {
                 minimumFractionDigits: 2,
                 maximumFractionDigits: 2
             }).format(euros);
+        },
+
+        // Format stored amount with specific currency
+        formatWithCurrency(stored, currency = 'EUR', locale = 'fr-FR') {
+            const amount = this.fromStorageUnit(stored, currency);
+
+            if (currency === 'BTC') {
+                // For BTC, use special formatting (up to 8 decimals)
+                // Remove trailing zeros but keep at least 2 decimals
+                let formatted = amount.toFixed(8);
+                formatted = formatted.replace(/\.?0+$/, ''); // Remove trailing zeros
+                if (!formatted.includes('.')) {
+                    formatted += '.00';
+                } else if (formatted.split('.')[1].length < 2) {
+                    formatted += '0';
+                }
+                return `${formatted} ₿`;
+            }
+
+            // For other currencies, use Intl.NumberFormat
+            return new Intl.NumberFormat(locale, {
+                style: 'currency',
+                currency: currency,
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
+            }).format(amount);
         },
 
         // Parse user input to cents
@@ -43,16 +104,10 @@ class RatchouUtils {
      * Date utilities
      */
     static date = {
-        // Convert SQLite datetime to ISO string
-        toISO(sqliteDateTime) {
-            if (!sqliteDateTime) return new Date().toISOString();
-            
-            // Handle SQLite format: "2025-08-31 09:12:40"
-            if (typeof sqliteDateTime === 'string' && !sqliteDateTime.includes('T')) {
-                return new Date(sqliteDateTime + 'Z').toISOString();
-            }
-            
-            return new Date(sqliteDateTime).toISOString();
+        // Convert datetime to ISO string
+        toISO(dateTime) {
+            if (!dateTime) return new Date().toISOString();
+            return new Date(dateTime).toISOString();
         },
 
         // Current timestamp as ISO string
@@ -101,20 +156,6 @@ class RatchouUtils {
         }
     };
 
-    /**
-     * Boolean conversion for SQLite INTEGER (0/1) to JavaScript boolean
-     */
-    static boolean = {
-        // Convert SQLite integer to boolean
-        fromSQLite(sqliteInt) {
-            return sqliteInt === 1 || sqliteInt === true;
-        },
-
-        // Convert boolean to SQLite integer
-        toSQLite(bool) {
-            return bool ? 1 : 0;
-        }
-    };
 
     /**
      * Generate UUID v4
@@ -127,87 +168,6 @@ class RatchouUtils {
         });
     }
 
-    /**
-     * Data transformation from SQLite to IndexedDB format
-     */
-    static transform = {
-        // Transform user data
-        user(sqliteUser) {
-            return {
-                code_acces: sqliteUser.CODE_ACCES
-            };
-        },
-
-        // Transform account data (supports both SQLite and IndexedDB formats)
-        account(account) {
-            return {
-                id: account.ID || account.id,
-                nom_compte: account.NOM_COMPTE || account.nom_compte,
-                balance: account.SOLDE !== undefined ? RatchouUtils.currency.toCents(account.SOLDE) : account.balance,
-                // Ensure is_principal is stored as a number (1 or 0) for reliable indexing
-                is_principal: account.COMPTE_PRINCIPAL !== undefined ? (account.COMPTE_PRINCIPAL ? 1 : 0) : (account.is_principal ? 1 : 0)
-            };
-        },
-
-        // Transform category data (supports both SQLite and IndexedDB formats)
-        category(category) {
-            return {
-                id: category.ID || category.id,
-                libelle: category.LIBELLE || category.libelle,
-                is_mandatory: category.DEPENSE_OBLIGATOIRE !== undefined ? (category.DEPENSE_OBLIGATOIRE ? 1 : 0) : (category.is_mandatory ? 1 : 0)
-            };
-        },
-
-        // Transform payee data (supports both SQLite and IndexedDB formats)
-        payee(payee) {
-            return {
-                id: payee.ID || payee.id,
-                libelle: payee.LIBELLE || payee.libelle
-            };
-        },
-
-        // Transform expense type data (supports both SQLite and IndexedDB formats)
-        expenseType(expenseType) {
-            return {
-                id: expenseType.ID || expenseType.id,
-                libelle: expenseType.LIBELLE || expenseType.libelle,
-                is_default: expenseType.TYPE_DEFAUT !== undefined ? (expenseType.TYPE_DEFAUT ? 1 : 0) : (expenseType.is_default ? 1 : 0)
-            };
-        },
-
-        // Transform transaction data (supports both SQLite and IndexedDB formats)
-        transaction(transaction) {
-            return {
-                id: transaction.ID || transaction.id,
-                date_mouvement: transaction.DATE_MOUVEMENT ? RatchouUtils.date.toISO(transaction.DATE_MOUVEMENT) : transaction.date_mouvement,
-                amount: transaction.MONTANT !== undefined ? RatchouUtils.currency.toCents(transaction.MONTANT) : transaction.amount,
-                category_id: transaction.CATEGORIE_ID || transaction.category_id,
-                payee_id: transaction.BENEFICIAIRE_ID || transaction.payee_id || null,
-                expense_type_id: transaction.TYPE_DEPENSE_ID || transaction.expense_type_id || null,
-                description: transaction.RMQ || transaction.description || null,
-                account_id: transaction.COMPTE_ID || transaction.account_id
-            };
-        },
-
-        // Transform recurring expense data (supports both SQLite and IndexedDB formats)
-        recurringExpense(recurring) {
-            return {
-                id: recurring.ID || recurring.id,
-                libelle: recurring.LIBELLE || recurring.libelle,
-                amount: recurring.MONTANT !== undefined ? RatchouUtils.currency.toCents(recurring.MONTANT) : recurring.amount,
-                day_of_month: recurring.JOUR_MOIS || recurring.day_of_month,
-                start_month: recurring.MOIS_DEPART || recurring.start_month || null,
-                frequency: recurring.FREQUENCE || recurring.frequency || 1,
-                category_id: recurring.CATEGORIE_ID || recurring.category_id,
-                payee_id: recurring.BENEFICIAIRE_ID || recurring.payee_id || null,
-                expense_type_id: recurring.TYPE_DEPENSE_ID || recurring.expense_type_id || null,
-                account_id: recurring.COMPTE_ID || recurring.account_id,
-                is_active: recurring.ACTIF !== undefined ? (recurring.ACTIF ? 1 : 0) : (recurring.is_active ? 1 : 0),
-                last_execution: recurring.DERNIERE_EXECUTION ? 
-                    RatchouUtils.date.toISO(recurring.DERNIERE_EXECUTION) : recurring.last_execution || null
-            };
-        }
-    };
 
     /**
      * Validation utilities
@@ -405,6 +365,105 @@ class RatchouUtils {
                 updated_at: now,
                 is_deleted: 1, // Use 1 for true
                 deleted_at: now
+            };
+        }
+    };
+
+    /**
+     * Version and environment utilities
+     */
+    static version = {
+        // Get app version from Service Worker
+        async getAppVersionFromSW() {
+            try {
+                // Determine correct path to sw.js based on current location
+                const currentPath = window.location.pathname;
+                const swPath = currentPath.includes('/manage/') ? '../sw.js' : './sw.js';
+
+                // Try to get version from registered service worker first
+                if ('serviceWorker' in navigator) {
+                    const registration = await navigator.serviceWorker.getRegistration();
+                    if (registration && registration.active) {
+                        // Try to fetch from the correct path
+                        try {
+                            const response = await fetch(swPath, { cache: 'no-cache' });
+                            const swContent = await response.text();
+                            const versionMatch = swContent.match(/const APP_VERSION = ['"]([^'"]+)['"]/);
+                            if (versionMatch) {
+                                return versionMatch[1];
+                            }
+                        } catch (fetchError) {
+                            console.warn('Could not fetch SW from path:', swPath, fetchError);
+                        }
+                    }
+                }
+
+                // Fallback: try both possible paths
+                const pathsToTry = [swPath, './sw.js', '../sw.js', '/sw.js'];
+
+                for (const path of pathsToTry) {
+                    try {
+                        const response = await fetch(path, { cache: 'no-cache' });
+                        if (response.ok) {
+                            const swContent = await response.text();
+                            const versionMatch = swContent.match(/const APP_VERSION = ['"]([^'"]+)['"]/);
+                            if (versionMatch) {
+                                return versionMatch[1];
+                            }
+                        }
+                    } catch (fetchError) {
+                        // Continue to next path
+                    }
+                }
+
+                return '1.0.0'; // Final fallback
+
+            } catch (error) {
+                console.warn('Could not read version from service worker:', error);
+                return '1.0.0'; // Fallback version
+            }
+        },
+
+        // Get environment information based on hostname
+        getEnvironmentInfo() {
+            const hostname = window.location.hostname;
+
+            if (hostname === 'app.ratchou.fr') {
+                return {
+                    name: 'PROD',
+                    color: 'success',
+                    label: 'Production'
+                };
+            } else if (hostname === 'maison.wse.fr') {
+                return {
+                    name: 'DEV',
+                    color: 'warning',
+                    label: 'Développement'
+                };
+            } else if (hostname === 'localhost' || hostname === '127.0.0.1') {
+                return {
+                    name: 'LOCAL',
+                    color: 'info',
+                    label: 'Local'
+                };
+            } else {
+                return {
+                    name: 'OTHER',
+                    color: 'secondary',
+                    label: 'Autre'
+                };
+            }
+        },
+
+        // Get complete version info with environment
+        async getVersionWithEnvironment() {
+            const version = await this.getAppVersionFromSW();
+            const env = this.getEnvironmentInfo();
+
+            return {
+                version,
+                environment: env,
+                fullVersion: `${version} (${env.name})`
             };
         }
     };

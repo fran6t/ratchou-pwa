@@ -1,4 +1,4 @@
-import { importData, exportData } from '../components/import-export.js';
+import { importData, exportDataWithFormat } from '../components/import-export.js';
 
 class MainController {
     constructor() {
@@ -138,9 +138,9 @@ class MainController {
 
     toggleRestoreFileInput() {
         if (this.hasRestoreFileCheckbox.checked) {
-            this.restoreFileContainer.style.display = 'block';
+            this.restoreFileContainer.classList.remove('d-none');
         } else {
-            this.restoreFileContainer.style.display = 'none';
+            this.restoreFileContainer.classList.add('d-none');
             // Clear the file input when hiding
             this.importFileInput.value = '';
         }
@@ -276,7 +276,7 @@ class MainController {
                     alertInfo,
                     async () => {
                         try {
-                            await exportData();
+                            await exportDataWithFormat('zip');
                             // Redirect after successful export
                             setTimeout(() => {
                                 window.location.replace('dashboard.html');

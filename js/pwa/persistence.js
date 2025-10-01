@@ -1,12 +1,22 @@
 // Storage Persistence Management for Ratchou PWA
 class StoragePersistence {
     constructor() {
+        // Singleton pattern: return existing instance if it exists
+        if (StoragePersistence.instance) {
+            console.log('[Storage] Returning existing instance');
+            return StoragePersistence.instance;
+        }
+
         this.isSupported = 'storage' in navigator && 'persist' in navigator.storage;
         this.isPersistent = false;
         this.storageInfo = null;
         this.warningThreshold = 0.8; // Warn when 80% full
         this.criticalThreshold = 0.9; // Critical when 90% full
-        
+        this.warningShown = false; // Flag to prevent duplicate warnings
+
+        // Store singleton instance
+        StoragePersistence.instance = this;
+
         this.init();
     }
 
@@ -265,9 +275,16 @@ class StoragePersistence {
     }
 
     showPersistenceWarningMessage() {
+        // Éviter d'afficher plusieurs fois le même toast
+        if (this.warningShown) {
+            console.log('[Storage] Warning already shown, skipping duplicate');
+            return;
+        }
+        this.warningShown = true;
+
         this.showToast(
-            'Stockage non persistant', 
-            'Vos données pourraient être supprimées si l\'espace manque. Utilisez régulièrement l\'export.', 
+            'Stockage non persistant',
+            'Vos données pourraient être supprimées si l\'espace manque. Utilisez régulièrement l\'export.',
             'warning'
         );
     }
@@ -352,16 +369,57 @@ class StoragePersistence {
     checkStorage() {
         this.updateStorageInfo();
     }
+
+    /**
+     * Vérifier si l'utilisateur peut accéder à l'application
+     * Retourne true si persistance accordée OU risques acceptés
+     */
+    canAccessApp() {
+        // Vérifier si persistance accordée
+        if (this.isPersistent) {
+            return true;
+        }
+
+        // Vérifier si l'utilisateur a accepté les risques
+        try {
+            const risksAccepted = localStorage.getItem('ratchou_risks_accepted');
+            if (risksAccepted) {
+                const acceptance = JSON.parse(risksAccepted);
+                return acceptance.accepted === true;
+            }
+        } catch (error) {
+            console.warn('Erreur lecture acceptation risques:', error);
+        }
+
+        return false;
+    }
+
+    /**
+     * Rediriger vers la page de validation si nécessaire
+     * Retourne true si redirection effectuée, false si accès autorisé
+     */
+    async redirectIfNeeded() {
+        // Vérifier d'abord la persistance
+        await this.checkPersistenceStatus();
+
+        // Vérifier si l'accès est autorisé
+        if (this.canAccessApp()) {
+            return false; // Pas de redirection, accès autorisé
+        }
+
+        // Redirection vers la page de validation
+        const currentPath = window.location.pathname;
+        const isInManageFolder = currentPath.includes('/manage/');
+        const validationPageUrl = isInManageFolder ? '../persistence-required.html' : 'persistence-required.html';
+
+        console.log('[Persistence] Redirection vers page de validation:', validationPageUrl);
+        window.location.replace(validationPageUrl);
+        return true; // Redirection effectuée
+    }
 }
 
-// Initialize storage persistence when DOM is ready
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', () => {
-        window.storagePersistence = new StoragePersistence();
-    });
-} else {
-    window.storagePersistence = new StoragePersistence();
-}
+// Storage persistence will be manually initialized by pages that need it
+// No automatic initialization to avoid unwanted tests on every page
 
 // Export for manual usage
 window.StoragePersistence = StoragePersistence;

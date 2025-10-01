@@ -18,8 +18,32 @@
     <link href="../assets/css/bootstrap.min.css" rel="stylesheet">
     <link href="../assets/css/bootstrap-icons.min.css" rel="stylesheet">
     <link href="../assets/css/app.css" rel="stylesheet">
+
+    <!-- Prevent dark mode flash -->
+    <style>
+        /* Prevent flash by setting initial colors based on system preference */
+        @media (prefers-color-scheme: dark) {
+            html { background-color: #212529; color: #dee2e6; }
+        }
+    </style>
+    <script>
+        (function() {
+            const theme = localStorage.getItem('ratchou-theme');
+            const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+
+            let resolvedTheme = 'light';
+            if (theme === 'dark' || (theme === 'auto' && prefersDark) || (!theme && prefersDark)) {
+                resolvedTheme = 'dark';
+            }
+
+            document.documentElement.setAttribute('data-bs-theme', resolvedTheme);
+            if (resolvedTheme === 'dark') {
+                document.documentElement.classList.add('dark-theme');
+            }
+        })();
+    </script>
 </head>
-<body class="bg-light">
+<body>
     <!-- Loading Overlay -->
     <div id="loadingOverlay" class="position-fixed top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center bg-white bg-opacity-75" style="z-index: 9999; display: none !important;">
         <div class="spinner-border text-primary" role="status">
@@ -152,6 +176,7 @@
     <script src="../assets/js/bootstrap.bundle.min.js"></script>
     
     <!-- Core Ratchou Scripts -->
+    <script src="../js/core/private-mode-detector.js"></script>
     <script src="../js/core/utils.js"></script>
     <script src="../js/core/indexeddb-wrapper.js"></script>
     <script src="../js/core/models/base-model.js"></script>
@@ -167,11 +192,13 @@
     <!-- Component System -->
     <script src="../js/components/component-loader.js"></script>
 
+    <!-- Theme Manager -->
+    <script src="../js/core/theme-manager.js"></script>
+
     <!-- Type Depenses Page Script -->
     <script src="../js/pages/type_depenses.js"></script>
     
     <!-- PWA Scripts -->
     <script src="../js/pwa/install.js"></script>
-    <script src="../js/pwa/persistence.js"></script>
 </body>
 </html>

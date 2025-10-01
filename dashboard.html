@@ -18,8 +18,32 @@
     <link href="assets/css/bootstrap.min.css" rel="stylesheet">
     <link href="assets/css/bootstrap-icons.min.css" rel="stylesheet">
     <link href="assets/css/app.css" rel="stylesheet">
+
+    <!-- Prevent dark mode flash -->
+    <style>
+        /* Prevent flash by setting initial colors based on system preference */
+        @media (prefers-color-scheme: dark) {
+            html { background-color: #212529; color: #dee2e6; }
+        }
+    </style>
+    <script>
+        (function() {
+            const theme = localStorage.getItem('ratchou-theme');
+            const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+
+            let resolvedTheme = 'light';
+            if (theme === 'dark' || (theme === 'auto' && prefersDark) || (!theme && prefersDark)) {
+                resolvedTheme = 'dark';
+            }
+
+            document.documentElement.setAttribute('data-bs-theme', resolvedTheme);
+            if (resolvedTheme === 'dark') {
+                document.documentElement.classList.add('dark-theme');
+            }
+        })();
+    </script>
 </head>
-<body class="bg-light">
+<body>
 
     <!-- Loading Overlay -->
     <div id="loadingOverlay" class="loading-overlay">
@@ -34,6 +58,11 @@
     <!-- Navigation sera injectée par le composant header -->
 
     <div class="container-fluid mt-4">
+        <!-- Zone PWA intégrée -->
+        <div id="pwa-notification-zone" class="d-none">
+            <!-- Contenu dynamique : installation OU mise à jour -->
+        </div>
+
         <div class="card shadow-sm mb-4">
             <div class="card-header">
                 <h5 class="mb-0"><i class="bi bi-lightning-charge-fill text-warning"></i> Saisie rapide</h5>
@@ -42,7 +71,7 @@
                 <form id="movementForm">
                     <div class="input-group mb-2">
                         <span class="input-group-text">Montant</span>
-                        <input type="number" step="0.01" class="form-control" id="montant" name="montant" required>
+                        <input type="number" step="any" class="form-control" id="montant" name="montant" required>
                         <button type="submit" form="movementForm" class="btn btn-primary btn-sm rounded-pill ms-2" id="submitBtn" title="Enregistrer">💾 Enregistrer</button>
                     </div>
                     <div class="form-text mb-3 d-block">Positif = recette, Négatif = dépense</div>
@@ -54,11 +83,8 @@
                         <button type="button" class="btn btn-outline-primary btn-sm rounded-pill" id="resetFormBtn" title="Annuler">
                             <i class="bi bi-x-circle-fill text-danger"></i>
                         </button>
-                        <button type="button" class="btn btn-outline-info btn-sm rounded-pill" id="testTooltipsBtn" title="Tester les tooltips">
-                            🧪 Test Tips
-                        </button>
                     </div>
-                    <div id="duplicate-transaction-wrapper" class="form-check mb-3" style="display: none;">
+                    <div id="duplicate-transaction-wrapper" class="form-check mb-3 d-none">
                         <input class="form-check-input" type="checkbox" id="duplicate-transaction">
                         <label class="form-check-label" for="duplicate-transaction">
                             Copier vers le compte principal
@@ -255,8 +281,8 @@
                         
                         <div class="input-group mb-3">
                             <span class="input-group-text">Montant</span>
-                            <input type="number" step="0.01" class="form-control" id="edit_montant" name="montant" required>
-                            <span class="input-group-text">€</span>
+                            <input type="number" step="any" class="form-control" id="edit_montant" name="montant" required>
+                            <span class="input-group-text" id="edit_currency_symbol">€</span>
                         </div>
                         
                         <div class="mb-3">
@@ -284,7 +310,7 @@
                     </form>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-info me-auto rounded-pill" id="duplicateToMainBtn" style="display: none;">Dupliquer au compte principal</button>
+                    <button type="button" class="btn btn-info me-auto rounded-pill d-none" id="duplicateToMainBtn">Dupliquer au compte principal</button>
                     <button type="button" class="btn btn-secondary rounded-pill" data-bs-dismiss="modal">Annuler</button>
                     <button type="button" class="btn btn-danger me-2 rounded-pill" id="deleteMovementBtn">Supprimer</button>
                     <button type="button" class="btn btn-primary rounded-pill" id="updateMovementBtn">💾 Enregistrer</button>
@@ -392,8 +418,9 @@
     <!-- Scripts -->
     <script src="assets/js/bootstrap.bundle.min.js"></script>
     <script src="js/lib/jszip.min.js"></script>
-    
+
     <!-- Core Ratchou Scripts -->
+    <script src="js/core/theme-manager.js"></script>
     <script src="js/core/utils.js"></script>
     <script src="js/core/indexeddb-wrapper.js"></script>
     <script src="js/core/models/base-model.js"></script>
@@ -415,7 +442,7 @@
     
     <!-- PWA Scripts -->
     <script src="js/pwa/install.js"></script>
-    <script src="js/pwa/persistence.js"></script>
+
 
 </body>
 </html>

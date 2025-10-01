@@ -18,8 +18,32 @@
     <link href="../assets/css/bootstrap.min.css" rel="stylesheet">
     <link href="../assets/css/bootstrap-icons.min.css" rel="stylesheet">
     <link href="../assets/css/app.css" rel="stylesheet">
+
+    <!-- Prevent dark mode flash -->
+    <style>
+        /* Prevent flash by setting initial colors based on system preference */
+        @media (prefers-color-scheme: dark) {
+            html { background-color: #212529; color: #dee2e6; }
+        }
+    </style>
+    <script>
+        (function() {
+            const theme = localStorage.getItem('ratchou-theme');
+            const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+
+            let resolvedTheme = 'light';
+            if (theme === 'dark' || (theme === 'auto' && prefersDark) || (!theme && prefersDark)) {
+                resolvedTheme = 'dark';
+            }
+
+            document.documentElement.setAttribute('data-bs-theme', resolvedTheme);
+            if (resolvedTheme === 'dark') {
+                document.documentElement.classList.add('dark-theme');
+            }
+        })();
+    </script>
 </head>
-<body class="bg-light">
+<body>
     
     <!-- Loading Overlay -->
     <div id="loadingOverlay" class="loading-overlay">
@@ -105,9 +129,9 @@
                 <div class="modal-body">
                     <form id="balanceForm">
                         <div class="mb-3">
-                            <label for="newBalance" class="form-label">Nouveau solde (€)</label>
-                            <input type="number" class="form-control" id="newBalance" step="0.01" required>
-                            <div class="form-text">Solde actuel: <span id="currentBalance">0,00 €</span></div>
+                            <label for="newBalance" class="form-label">Nouveau solde</label>
+                            <input type="number" class="form-control" id="newBalance" step="0.00000001" required>
+                            <div class="form-text">Solde actuel: <span id="currentBalance">0,00</span></div>
                         </div>
                     </form>
                 </div>
@@ -123,6 +147,7 @@
     <script src="../assets/js/bootstrap.bundle.min.js"></script>
     
     <!-- Core Ratchou Scripts -->
+    <script src="../js/core/private-mode-detector.js"></script>
     <script src="../js/core/utils.js"></script>
     <script src="../js/core/indexeddb-wrapper.js"></script>
     <script src="../js/core/models/base-model.js"></script>
@@ -138,12 +163,14 @@
     <!-- Component System -->
     <script src="../js/components/component-loader.js"></script>
 
+    <!-- Theme Manager -->
+    <script src="../js/core/theme-manager.js"></script>
+
     <!-- Projection Page Script -->
     <script src="../js/pages/projection.js"></script>
 
     
     <!-- PWA Scripts -->
     <script src="../js/pwa/install.js"></script>
-    <script src="../js/pwa/persistence.js"></script>
 </body>
 </html>

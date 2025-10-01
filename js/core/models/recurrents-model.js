@@ -179,7 +179,7 @@ class RecurringExpensesModel extends BaseModel {
         RatchouUtils.validate.required(data.amount, 'amount');
         RatchouUtils.validate.required(data.day_of_month, 'day_of_month');
         RatchouUtils.validate.required(data.account_id, 'account_id');
-        RatchouUtils.validate.required(data.category_id, 'category_id');
+        // category_id, payee_id, expense_type_id sont facultatifs
         data.libelle = data.libelle.trim();
         if (typeof data.amount !== 'number') throw new Error('Le montant doit être un nombre');
         if (data.amount !== Math.floor(data.amount)) data.amount = RatchouUtils.currency.toCents(data.amount);
@@ -222,10 +222,6 @@ class RecurringExpensesModel extends BaseModel {
         return enriched;
     }
 
-    async importFromSQLite(sqliteRecurring) {
-        const transformed = sqliteRecurring.map(RatchouUtils.transform.recurringExpense);
-        return await this.bulkImport(transformed);
-    }
 
     async createDefaults(principalAccount) {
         if (!principalAccount) {
@@ -247,7 +243,7 @@ class RecurringExpensesModel extends BaseModel {
             const insuranceCategory = categories.find(c => c.libelle && c.libelle.toLowerCase().includes('assurance'));
             const employerPayee = payees.find(p => p.libelle && p.libelle.toLowerCase().includes('employeur'));
             const insurancePayee = payees.find(p => p.libelle && p.libelle.toLowerCase().includes('assurance'));
-            const defaultExpenseType = expenseTypes.find(t => t.is_default === true);
+            const defaultExpenseType = expenseTypes.find(t => t.is_default === 1);
 
             console.log('Found entities:', {
                 salaryCategory: !!salaryCategory,

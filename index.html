@@ -23,6 +23,11 @@
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
         }
+
+        /* Dark theme gradient */
+        [data-bs-theme="dark"] body {
+            background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
+        }
         .main-card {
             border: none;
             border-radius: 15px;
@@ -37,7 +42,37 @@
         .container-hidden {
             display: none;
         }
+        .logo-size {
+            height: 100px;
+        }
+        .progress-lg {
+            height: 20px;
+        }
     </style>
+
+    <!-- Prevent dark mode flash -->
+    <style>
+        /* Prevent flash by setting initial colors based on system preference */
+        @media (prefers-color-scheme: dark) {
+            html { background-color: #212529; color: #dee2e6; }
+        }
+    </style>
+    <script>
+        (function() {
+            const theme = localStorage.getItem('ratchou-theme');
+            const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+
+            let resolvedTheme = 'light';
+            if (theme === 'dark' || (theme === 'auto' && prefersDark) || (!theme && prefersDark)) {
+                resolvedTheme = 'dark';
+            }
+
+            document.documentElement.setAttribute('data-bs-theme', resolvedTheme);
+            if (resolvedTheme === 'dark') {
+                document.documentElement.classList.add('dark-theme');
+            }
+        })();
+    </script>
 </head>
 <body class="d-flex align-items-center">
 
@@ -45,18 +80,30 @@
         <div class="row justify-content-center">
             <div class="col-md-6 col-lg-5">
                 <div class="card main-card">
+                    <!-- Card Header avec avertissement mode privé -->
+                    <div class="card-header bg-warning bg-opacity-10 border-0">
+                        <div class="d-flex align-items-center text-warning-emphasis">
+                            <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                            <div class="small">
+                                <strong>Important :</strong> N'utilisez pas cette application en mode navigation privée - toutes vos données seraient perdues à la fermeture du navigateur.
+                            </div>
+                        </div>
+                    </div>
+
                     <div class="card-body p-4 p-md-5">
                         <div class="text-center mb-4">
-                            <img src="assets/img/Logo_Ratchou.webp" alt="Ratchou Logo" style="height: 100px;">
+                            <img src="assets/img/Logo_Ratchou.webp" alt="Ratchou Logo" class="logo-size">
                         </div>
+
+                        <!-- Zone PWA : notifications installation/mises à jour -->
+                        <div id="pwa-notification-zone" class="d-none"></div>
 
                         <!-- ===== LOGIN CONTAINER ===== -->
                         <div id="login-container" class="container-hidden">
-                            <h1 class="h3 text-center mb-4">Connexion</h1>
                             <div id="loginError" class="alert alert-danger d-none" role="alert"></div>
                             <form id="loginForm" autocomplete="off">
                                 <!-- Champ factice pour tromper les gestionnaires de mots de passe -->
-                                <input type="password" style="display:none" autocomplete="new-password">
+                                <input type="password" class="d-none" autocomplete="new-password">
                                 <div class="mb-3">
                                     <label for="accessCodeLogin" class="form-label">Code d'accès</label>
                                     <input type="tel" class="form-control form-control-lg code-input" id="accessCodeLogin" maxlength="4" placeholder="...." required autocomplete="off" inputmode="numeric" pattern="[0-9]{4}" data-lpignore="true" spellcheck="false">
@@ -92,7 +139,7 @@
                                         J'ai un fichier de restauration
                                     </label>
                                 </div>
-                                <div class="mb-3" id="restoreFileContainer" style="display: none;">
+                                <div class="mb-3 d-none" id="restoreFileContainer">
                                     <label for="importFile" class="form-label">Sélectionner le fichier de sauvegarde</label>
                                     <input type="file" class="form-control" id="importFile" accept=".json,.zip">
                                     <div class="form-text">Formats acceptés : JSON (.json) ou ZIP (.zip)</div>
@@ -107,8 +154,8 @@
                         
                         <!-- Status/Progress Area -->
                         <div id="status-container" class="mt-4 container-hidden">
-                            <div class="progress" style="height: 20px;">
-                                <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%"></div>
+                            <div class="progress progress-lg">
+                                <div class="progress-bar progress-bar-striped progress-bar-animated w-0" role="progressbar"></div>
                             </div>
                             <p class="text-center mt-2" id="status-message"></p>
                             <button id="continueBtn" class="btn btn-success w-100 mt-3 container-hidden">
@@ -125,6 +172,7 @@
     <!-- Scripts -->
     <script src="assets/js/bootstrap.bundle.min.js"></script>
     <script src="js/lib/jszip.min.js"></script>
+    <script src="js/core/theme-manager.js"></script>
     <script src="js/core/utils.js"></script>
     <script src="js/core/indexeddb-wrapper.js"></script>
     <script src="js/core/models/base-model.js"></script>
@@ -141,6 +189,51 @@
     <script src="js/pages/main-controller.js" type="module"></script>
     <script src="js/pwa/install.js"></script>
     <script src="js/pwa/persistence.js"></script>
+
+    <!-- Vérification persistance au chargement -->
+    <script>
+        // Vérifier la persistance dès que possible
+        (async function checkPersistenceOnLoad() {
+            try {
+                // Attendre que le DOM soit prêt
+                if (document.readyState === 'loading') {
+                    await new Promise(resolve => {
+                        document.addEventListener('DOMContentLoaded', resolve);
+                    });
+                }
+
+                // Initialiser manuellement le système de persistance
+                if (window.StoragePersistence) {
+                    // Éviter de créer plusieurs instances
+                    if (!window.storagePersistence) {
+                        window.storagePersistence = new StoragePersistence();
+                        // Attendre que l'initialisation soit terminée
+                        await new Promise(resolve => setTimeout(resolve, 500));
+                    } else {
+                        console.log('[Persistence] Instance already exists, reusing');
+                    }
+                } else {
+                    console.warn('[Persistence] StoragePersistence not available');
+                    return;
+                }
+
+                if (window.storagePersistence && typeof window.storagePersistence.redirectIfNeeded === 'function') {
+                    // Vérifier et rediriger si nécessaire
+                    const redirected = await window.storagePersistence.redirectIfNeeded();
+                    if (redirected) {
+                        console.log('[App] Redirection vers validation persistance effectuée');
+                        return; // Arrêter le chargement de la page
+                    }
+                    console.log('[App] Accès autorisé - persistance validée');
+                } else {
+                    console.warn('[App] Système de persistance non disponible');
+                }
+            } catch (error) {
+                console.error('[App] Erreur vérification persistance:', error);
+                // En cas d'erreur, laisser l'utilisateur continuer
+            }
+        })();
+    </script>
 
 </body>
 </html>

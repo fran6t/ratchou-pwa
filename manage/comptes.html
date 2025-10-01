@@ -18,10 +18,34 @@
     <link href="../assets/css/bootstrap.min.css" rel="stylesheet">
     <link href="../assets/css/bootstrap-icons.min.css" rel="stylesheet">
     <link href="../assets/css/app.css" rel="stylesheet">
+
+    <!-- Prevent dark mode flash -->
+    <style>
+        /* Prevent flash by setting initial colors based on system preference */
+        @media (prefers-color-scheme: dark) {
+            html { background-color: #212529; color: #dee2e6; }
+        }
+    </style>
+    <script>
+        (function() {
+            const theme = localStorage.getItem('ratchou-theme');
+            const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+
+            let resolvedTheme = 'light';
+            if (theme === 'dark' || (theme === 'auto' && prefersDark) || (!theme && prefersDark)) {
+                resolvedTheme = 'dark';
+            }
+
+            document.documentElement.setAttribute('data-bs-theme', resolvedTheme);
+            if (resolvedTheme === 'dark') {
+                document.documentElement.classList.add('dark-theme');
+            }
+        })();
+    </script>
 </head>
-<body class="bg-light">
+<body>
     <!-- Loading Overlay -->
-    <div id="loadingOverlay" class="position-fixed top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center bg-white bg-opacity-75" style="z-index: 9999; display: none !important;">
+    <div id="loadingOverlay" class="position-fixed top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center bg-body bg-opacity-75" style="z-index: 9999; display: none !important;">
         <div class="spinner-border text-primary" role="status">
             <span class="visually-hidden">Chargement...</span>
         </div>
@@ -72,13 +96,38 @@
                         </div>
                         <div class="mb-3">
                             <label for="solde_initial" class="form-label">Solde initial</label>
-                            <input type="number" step="0.01" class="form-control" id="solde_initial" name="solde_initial" value="0">
+                            <input type="number" step="any" class="form-control" id="solde_initial" name="solde_initial" value="0">
+                        </div>
+                        <div class="mb-3">
+                            <label for="devise" class="form-label">Devise</label>
+                            <select class="form-select" id="devise" name="devise">
+                                <option value="EUR" selected>EUR - Euro (€)</option>
+                                <option value="USD">USD - Dollar ($)</option>
+                                <option value="BTC">BTC - Bitcoin (₿)</option>
+                            </select>
                         </div>
                         <div class="form-check mb-3">
                             <input class="form-check-input" type="checkbox" id="compte_principal" name="compte_principal">
                             <label class="form-check-label" for="compte_principal">
                                 Définir comme compte principal
                             </label>
+                        </div>
+                        <div class="form-check mb-3" id="auto_copy_section" style="display: none;">
+                            <input class="form-check-input" type="checkbox" id="auto_copy_to_principal" name="auto_copy_to_principal">
+                            <label class="form-check-label" for="auto_copy_to_principal">
+                                Copier automatiquement les mouvements vers le compte principal
+                            </label>
+                        </div>
+                        <hr>
+                        <div class="mb-3">
+                            <label for="remarque" class="form-label">Remarque (optionnel)</label>
+                            <textarea class="form-control" id="remarque" name="remarque" rows="3" placeholder="Informations complémentaires sur ce compte..."></textarea>
+                            <div class="form-text">Cette remarque peut être chiffrée pour plus de sécurité</div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="crypto_key" class="form-label">Clé de chiffrement (optionnel)</label>
+                            <input type="password" class="form-control" id="crypto_key" name="crypto_key" placeholder="Laissez vide pour ne pas chiffrer">
+                            <div class="form-text">Si vous saisissez une clé, la remarque sera chiffrée. Cette clé ne sera pas sauvegardée.</div>
                         </div>
                     </form>
                 </div>
@@ -107,7 +156,44 @@
                         </div>
                         <div class="mb-3">
                             <label for="edit_solde" class="form-label">Solde</label>
-                            <input type="number" step="0.01" class="form-control" id="edit_solde" name="solde">
+                            <input type="number" step="any" class="form-control" id="edit_solde" name="solde">
+                        </div>
+                        <div class="mb-3">
+                            <label for="edit_devise" class="form-label">Devise</label>
+                            <select class="form-select" id="edit_devise" name="devise">
+                                <option value="EUR">EUR - Euro (€)</option>
+                                <option value="USD">USD - Dollar ($)</option>
+                                <option value="BTC">BTC - Bitcoin (₿)</option>
+                            </select>
+                        </div>
+                        <div class="form-check mb-3" id="edit_auto_copy_section">
+                            <input class="form-check-input" type="checkbox" id="edit_auto_copy_to_principal" name="auto_copy_to_principal">
+                            <label class="form-check-label" for="edit_auto_copy_to_principal">
+                                Copier automatiquement les mouvements vers le compte principal
+                            </label>
+                        </div>
+                        <hr>
+                        <div class="mb-3">
+                            <label class="form-label">Remarque chiffrée</label>
+                            <div id="encrypted_display" class="alert alert-secondary" style="display: none;">
+                                <small class="font-monospace" id="encrypted_preview"></small>
+                            </div>
+                            <div id="no_remark_display" class="text-muted" style="display: none;">
+                                <small>Aucune remarque enregistrée</small>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="edit_remarque" class="form-label">Modifier la remarque</label>
+                            <textarea class="form-control" id="edit_remarque" name="remarque" rows="3" placeholder="Nouvelle remarque..."></textarea>
+                        </div>
+                        <div class="mb-3">
+                            <label for="edit_crypto_key" class="form-label">Clé de chiffrement/déchiffrement</label>
+                            <div class="input-group">
+                                <input type="password" class="form-control" id="edit_crypto_key" name="crypto_key" placeholder="Clé pour chiffrer ou déchiffrer">
+                                <button type="button" class="btn btn-outline-secondary" id="decryptBtn">🔓 Déchiffrer</button>
+                            </div>
+                            <div class="form-text">Pour voir la remarque chiffrée : saisissez la clé et cliquez sur Déchiffrer</div>
+                            <div class="form-text">Pour modifier : éditez la remarque et saisissez une clé (même ou nouvelle)</div>
                         </div>
                     </form>
                 </div>
@@ -122,9 +208,11 @@
     <!-- Sidebar sera injecté par le composant sidebar -->
 
     <script src="../assets/js/bootstrap.bundle.min.js"></script>
-    
+
     <!-- Core Ratchou Scripts -->
+    <script src="../js/core/private-mode-detector.js"></script>
     <script src="../js/core/utils.js"></script>
+    <script src="../js/core/crypto-utils.js"></script>
     <script src="../js/core/indexeddb-wrapper.js"></script>
     <script src="../js/core/models/base-model.js"></script>
     <script src="../js/core/models/comptes-model.js"></script>
@@ -135,15 +223,17 @@
     <script src="../js/core/models/recurrents-model.js"></script>
     <script src="../js/core/auth.js"></script>
     <script src="../js/core/ratchou-app.js"></script>
-    
+
     <!-- Component System -->
     <script src="../js/components/component-loader.js"></script>
+
+    <!-- Theme Manager -->
+    <script src="../js/core/theme-manager.js"></script>
 
     <!-- Accounts Page Script -->
     <script src="../js/pages/accounts.js"></script>
     
     <!-- PWA Scripts -->
     <script src="../js/pwa/install.js"></script>
-    <script src="../js/pwa/persistence.js"></script>
 </body>
 </html>

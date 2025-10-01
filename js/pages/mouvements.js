@@ -428,19 +428,16 @@ class MouvementsController {
             const originalText = this.currentPanelButton.getAttribute('data-original-text');
             const originalIcon = this.currentPanelButton.getAttribute('data-icon');
             this.currentPanelButton.innerHTML = `${originalIcon} ${originalText}`;
-            this.currentPanelButton.classList.remove('btn-primary');
-            this.currentPanelButton.classList.add('btn-outline-primary');
+            this.currentPanelButton.className = 'btn btn-outline-primary rounded-pill w-100';
         } else {
             input.value = value;
             const buttonText = value ? `${icon} ${label}` : `${icon} ${this.currentPanelButton.getAttribute('data-original-text')}`;
             this.currentPanelButton.innerHTML = buttonText;
 
             if (value) {
-                this.currentPanelButton.classList.remove('btn-outline-primary');
-                this.currentPanelButton.classList.add('btn-primary');
+                this.currentPanelButton.className = 'btn btn-primary rounded-pill w-100';
             } else {
-                this.currentPanelButton.classList.remove('btn-primary');
-                this.currentPanelButton.classList.add('btn-outline-primary');
+                this.currentPanelButton.className = 'btn btn-outline-primary rounded-pill w-100';
             }
         }
         
@@ -485,16 +482,16 @@ class MouvementsController {
     async searchTransactions() {
         try {
             const transactions = await ratchouApp.models.transactions.searchWithDetails(this.currentFilters);
-            
+
             this.currentResults = transactions;
             this.totalItems = transactions.length;
-            
+
             if (transactions.length === 0) {
                 this.showNoResults(true);
             } else {
                 this.displayResults(transactions);
             }
-            
+
         } catch (error) {
             console.error('Error searching transactions:', error);
             this.showError('Erreur lors de la recherche des transactions');
@@ -505,18 +502,19 @@ class MouvementsController {
      * Display search results
      */
     displayResults(transactions) {
-        this.noResultsElement.style.display = 'none';
-        this.resultsTableElement.style.display = 'block';
-        
+        // Use Bootstrap classes instead of inline styles
+        this.noResultsElement.classList.add('d-none');
+        this.resultsTableElement.classList.remove('d-none');
+
         // Update count
         this.totalCountElement.textContent = this.formatNumber(transactions.length);
-        
+
         // Clear table
         this.movementsTableBody.innerHTML = '';
-        
+
         // Group transactions by date
         const groupedTransactions = this.groupTransactionsByDate(transactions);
-        
+
         // Display transactions
         Object.keys(groupedTransactions).sort().reverse().forEach(date => {
             // Add date separator
@@ -528,7 +526,7 @@ class MouvementsController {
                 </td>
             `;
             this.movementsTableBody.appendChild(dateRow);
-            
+
             // Add transactions for this date
             groupedTransactions[date].forEach(transaction => {
                 const row = this.createTransactionRow(transaction);
@@ -567,12 +565,17 @@ class MouvementsController {
         row.className = 'movement-row';
         row.style.cursor = 'pointer';
         row.setAttribute('data-transaction-id', transaction.id);
-        
-        // Convert from cents to euros for display
-        const amountInCents = parseFloat(transaction.amount);
-        const amountInEuros = RatchouUtils.currency.toEuros(amountInCents);
-        const amountClass = amountInEuros >= 0 ? 'amount-positive' : 'amount-negative';
-        const amountText = (amountInEuros >= 0 ? '+' : '') + this.formatCurrency(amountInEuros);
+
+        // Get account to determine currency
+        const account = this.allAccounts.find(a => a.id === transaction.account_id);
+        const currency = account?.currency || 'EUR';
+
+        // Convert from storage unit to display value
+        const amountInStorage = parseFloat(transaction.amount);
+        const amountDisplay = RatchouUtils.currency.fromStorageUnit(amountInStorage, currency);
+        const amountClass = amountDisplay >= 0 ? 'amount-positive' : 'amount-negative';
+        const formattedAmount = RatchouUtils.currency.formatWithCurrency(amountInStorage, currency);
+        const amountText = (amountDisplay >= 0 ? '+' : '') + formattedAmount;
         
         const time = new Date(transaction.date_mouvement).toLocaleTimeString('fr-FR', { 
             hour: '2-digit', 
@@ -612,25 +615,39 @@ class MouvementsController {
     async editMovement(movementId) {
         try {
             this.showLoading('Chargement du mouvement...');
-            
+
             const transaction = await ratchouApp.models.transactions.getById(movementId);
-            
+
             if (!transaction) {
                 this.showError('Mouvement introuvable');
                 return;
             }
-            
-            // Fill the form (convert from cents to euros for form)
+
+            // Get account to determine currency
+            const account = this.allAccounts.find(a => a.id === transaction.account_id);
+            const currency = account?.currency || 'EUR';
+
+            // Fill the form (convert from storage unit to display value for form)
             document.getElementById('edit_movement_id').value = transaction.id;
-            document.getElementById('edit_montant').value = RatchouUtils.currency.toEuros(transaction.amount);
+            document.getElementById('edit_montant').value = RatchouUtils.currency.fromStorageUnit(transaction.amount, currency);
             document.getElementById('edit_categorie_id').value = transaction.category_id || '';
             document.getElementById('edit_beneficiaire_id').value = transaction.payee_id || '';
             document.getElementById('edit_type_depense_id').value = transaction.expense_type_id || '';
             document.getElementById('edit_rmq').value = transaction.description || '';
-            
+
+            // Store currency for update
+            this.currentEditCurrency = currency;
+
             // Update button texts
             this.updateEditButtonTexts(transaction);
-            
+
+            // Update currency symbol in modal
+            const currencySymbol = currency === 'BTC' ? '₿' : '€';
+            const currencySymbolElement = document.getElementById('edit_currency_symbol');
+            if (currencySymbolElement) {
+                currencySymbolElement.textContent = currencySymbol;
+            }
+
             // Show modal
             this.editMovementModal.show();
             this.hideLoading();
@@ -648,34 +665,55 @@ class MouvementsController {
     updateEditButtonTexts(transaction) {
         // Update category button
         const categoryBtn = document.querySelector('[data-input-target="edit_categorie_id"]');
-        if (categoryBtn && transaction.category_id) {
-            const category = this.categories.find(c => c.id === transaction.category_id);
-            if (category) {
-                categoryBtn.innerHTML = `📂 ${category.libelle}`;
-                categoryBtn.classList.remove('btn-outline-primary');
-                categoryBtn.classList.add('btn-primary');
+        if (categoryBtn) {
+            if (transaction.category_id) {
+                const category = this.categories.find(c => c.id === transaction.category_id);
+                if (category) {
+                    categoryBtn.innerHTML = `📂 ${category.libelle}`;
+                    categoryBtn.className = 'btn btn-primary rounded-pill w-100';
+                } else {
+                    categoryBtn.innerHTML = '📂 Catégorie';
+                    categoryBtn.className = 'btn btn-outline-primary rounded-pill w-100';
+                }
+            } else {
+                categoryBtn.innerHTML = '📂 Catégorie';
+                categoryBtn.className = 'btn btn-outline-primary rounded-pill w-100';
             }
         }
-        
+
         // Update payee button
         const payeeBtn = document.querySelector('[data-input-target="edit_beneficiaire_id"]');
-        if (payeeBtn && transaction.payee_id) {
-            const payee = this.payees.find(p => p.id === transaction.payee_id);
-            if (payee) {
-                payeeBtn.innerHTML = `👥 ${payee.libelle}`;
-                payeeBtn.classList.remove('btn-outline-primary');
-                payeeBtn.classList.add('btn-primary');
+        if (payeeBtn) {
+            if (transaction.payee_id) {
+                const payee = this.payees.find(p => p.id === transaction.payee_id);
+                if (payee) {
+                    payeeBtn.innerHTML = `👥 ${payee.libelle}`;
+                    payeeBtn.className = 'btn btn-primary rounded-pill w-100';
+                } else {
+                    payeeBtn.innerHTML = '👥 Bénéficiaire';
+                    payeeBtn.className = 'btn btn-outline-primary rounded-pill w-100';
+                }
+            } else {
+                payeeBtn.innerHTML = '👥 Bénéficiaire';
+                payeeBtn.className = 'btn btn-outline-primary rounded-pill w-100';
             }
         }
-        
+
         // Update expense type button
         const typeBtn = document.querySelector('[data-input-target="edit_type_depense_id"]');
-        if (typeBtn && transaction.expense_type_id) {
-            const type = this.expenseTypes.find(t => t.id === transaction.expense_type_id);
-            if (type) {
-                typeBtn.innerHTML = `💳 ${type.libelle}`;
-                typeBtn.classList.remove('btn-outline-primary');
-                typeBtn.classList.add('btn-primary');
+        if (typeBtn) {
+            if (transaction.expense_type_id) {
+                const type = this.expenseTypes.find(t => t.id === transaction.expense_type_id);
+                if (type) {
+                    typeBtn.innerHTML = `💳 ${type.libelle}`;
+                    typeBtn.className = 'btn btn-primary rounded-pill w-100';
+                } else {
+                    typeBtn.innerHTML = '💳 Type';
+                    typeBtn.className = 'btn btn-outline-primary rounded-pill w-100';
+                }
+            } else {
+                typeBtn.innerHTML = '💳 Type';
+                typeBtn.className = 'btn btn-outline-primary rounded-pill w-100';
             }
         }
     }
@@ -687,22 +725,25 @@ class MouvementsController {
         try {
             const formData = new FormData(document.getElementById('editMovementForm'));
             const movementId = formData.get('movement_id');
-            
+
             if (!movementId) {
                 this.showError('ID du mouvement manquant');
                 return;
             }
-            
+
             this.showLoading('Modification en cours...');
-            
+
+            // Use stored currency from editMovement
+            const currency = this.currentEditCurrency || 'EUR';
+
             const updateData = {
-                amount: RatchouUtils.currency.toCents(parseFloat(formData.get('montant'))),
+                amount: RatchouUtils.currency.toStorageUnit(parseFloat(formData.get('montant')), currency),
                 category_id: formData.get('categorie_id') || null,
                 payee_id: formData.get('beneficiaire_id') || null,
                 expense_type_id: formData.get('type_depense_id') || null,
                 description: formData.get('rmq') || null
             };
-            
+
             await ratchouApp.models.transactions.update(movementId, updateData);
             
             this.editMovementModal.hide();
@@ -781,8 +822,7 @@ class MouvementsController {
             const icon = button.getAttribute('data-icon');
             if (originalText && icon) {
                 button.innerHTML = `${icon} ${originalText}`;
-                button.classList.remove('btn-primary');
-                button.classList.add('btn-outline-primary');
+                button.className = 'btn btn-outline-primary rounded-pill w-100';
             }
         });
         
@@ -797,8 +837,8 @@ class MouvementsController {
      * Show no results state
      */
     showNoResults(searched = false) {
-        this.noResultsElement.style.display = 'block';
-        this.resultsTableElement.style.display = 'none';
+        this.noResultsElement.classList.remove('d-none');
+        this.resultsTableElement.classList.add('d-none');
         this.totalCountElement.textContent = '0';
         
         if (searched) {
@@ -817,10 +857,10 @@ class MouvementsController {
     /**
      * Utility functions
      */
-    formatCurrency(amount) {
+    formatCurrency(amount, currency = 'EUR') {
         return new Intl.NumberFormat('fr-FR', {
             style: 'currency',
-            currency: 'EUR'
+            currency: currency
         }).format(amount);
     }
 

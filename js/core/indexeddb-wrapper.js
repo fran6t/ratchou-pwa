@@ -3,11 +3,161 @@
  * Provides a clean async/await interface over IndexedDB
  */
 
+// Centralized Database Schema Definition
+const DATABASE_SCHEMA = {
+    UTILISATEUR: {
+        keyPath: 'code_acces',
+        indexes: {
+            device_id: { keyPath: 'device_id', options: { unique: false } },
+            updated_at: { keyPath: 'updated_at', options: { unique: false } },
+            is_deleted: { keyPath: 'is_deleted', options: { unique: false } },
+            sync_rev: { keyPath: 'rev', options: { unique: false } },
+        },
+        fields: {
+            code_acces: { type: 'string', required: true },
+            device_id: { type: 'string', required: true },
+            updated_at: { type: 'number', required: true },
+            is_deleted: { type: 'number', required: true },
+            rev: { type: 'string', required: false },
+        }
+    },
+    COMPTES: {
+        keyPath: 'id',
+        indexes: {
+            name: { keyPath: 'nom_compte', options: { unique: true } },
+            principal: { keyPath: 'is_principal', options: { unique: false } },
+            device_id: { keyPath: 'device_id', options: { unique: false } },
+            updated_at: { keyPath: 'updated_at', options: { unique: false } },
+            is_deleted: { keyPath: 'is_deleted', options: { unique: false } },
+            sync_rev: { keyPath: 'rev', options: { unique: false } },
+        },
+        fields: {
+            id: { type: 'string', required: true },
+            nom_compte: { type: 'string', required: true },
+            solde_initial: { type: 'number', required: true },
+            is_principal: { type: 'number', required: true }, // 0 or 1
+            currency: { type: 'string', required: false, default: 'EUR' }, // EUR, USD, BTC
+            remarque_encrypted: { type: 'string', required: false, default: null }, // Encrypted or plain text remark
+        }
+    },
+    CATEGORIES: {
+        keyPath: 'id',
+        indexes: {
+            name: { keyPath: 'libelle', options: { unique: true } },
+            mandatory: { keyPath: 'is_mandatory', options: { unique: false } },
+            usage_count: { keyPath: 'usage_count', options: { unique: false } },
+            device_id: { keyPath: 'device_id', options: { unique: false } },
+            updated_at: { keyPath: 'updated_at', options: { unique: false } },
+            is_deleted: { keyPath: 'is_deleted', options: { unique: false } },
+            sync_rev: { keyPath: 'rev', options: { unique: false } },
+        },
+        fields: {
+            id: { type: 'string', required: true },
+            libelle: { type: 'string', required: true },
+            is_mandatory: { type: 'number', required: true },
+            usage_count: { type: 'number', required: true },
+        }
+    },
+    BENEFICIAIRES: {
+        keyPath: 'id',
+        indexes: {
+            name: { keyPath: 'libelle', options: { unique: true } },
+            usage_count: { keyPath: 'usage_count', options: { unique: false } },
+            device_id: { keyPath: 'device_id', options: { unique: false } },
+            updated_at: { keyPath: 'updated_at', options: { unique: false } },
+            is_deleted: { keyPath: 'is_deleted', options: { unique: false } },
+            sync_rev: { keyPath: 'rev', options: { unique: false } },
+        },
+        fields: {
+            id: { type: 'string', required: true },
+            libelle: { type: 'string', required: true },
+            usage_count: { type: 'number', required: true },
+        }
+    },
+    TYPE_DEPENSES: {
+        keyPath: 'id',
+        indexes: {
+            name: { keyPath: 'libelle', options: { unique: true } },
+            default: { keyPath: 'is_default', options: { unique: false } },
+            device_id: { keyPath: 'device_id', options: { unique: false } },
+            updated_at: { keyPath: 'updated_at', options: { unique: false } },
+            is_deleted: { keyPath: 'is_deleted', options: { unique: false } },
+            sync_rev: { keyPath: 'rev', options: { unique: false } },
+        },
+        fields: {
+            id: { type: 'string', required: true },
+            libelle: { type: 'string', required: true },
+            is_default: { type: 'number', required: true },
+        }
+    },
+    MOUVEMENTS: {
+        keyPath: 'id',
+        indexes: {
+            date: { keyPath: 'date_mouvement', options: { unique: false } },
+            account_id: { keyPath: 'account_id', options: { unique: false } },
+            category_id: { keyPath: 'category_id', options: { unique: false } },
+            payee_id: { keyPath: 'payee_id', options: { unique: false } },
+            expense_type_id: { keyPath: 'expense_type_id', options: { unique: false } },
+            amount: { keyPath: 'amount', options: { unique: false } },
+            date_account: { keyPath: ['date_mouvement', 'account_id'], options: { unique: false } },
+            reconcile_key: { keyPath: ['account_id', 'date_mouvement', 'amount'], options: { unique: false } },
+            device_id: { keyPath: 'device_id', options: { unique: false } },
+            updated_at: { keyPath: 'updated_at', options: { unique: false } },
+            is_deleted: { keyPath: 'is_deleted', options: { unique: false } },
+            sync_rev: { keyPath: 'rev', options: { unique: false } },
+        },
+        fields: {
+            id: { type: 'string', required: true },
+            date_mouvement: { type: 'string', required: true },
+            description: { type: 'string', required: false },
+            amount: { type: 'number', required: true },
+            account_id: { type: 'string', required: true },
+            category_id: { type: 'string', required: true },
+            payee_id: { type: 'string', required: true },
+            expense_type_id: { type: 'string', required: true },
+        }
+    },
+    DEPENSES_FIXES: {
+        keyPath: 'id',
+        indexes: {
+            account_id: { keyPath: 'account_id', options: { unique: false } },
+            category_id: { keyPath: 'category_id', options: { unique: false } },
+            payee_id: { keyPath: 'payee_id', options: { unique: false } },
+            expense_type_id: { keyPath: 'expense_type_id', options: { unique: false } },
+            active: { keyPath: 'is_active', options: { unique: false } },
+            day_month: { keyPath: 'day_of_month', options: { unique: false } },
+            device_id: { keyPath: 'device_id', options: { unique: false } },
+            updated_at: { keyPath: 'updated_at', options: { unique: false } },
+            is_deleted: { keyPath: 'is_deleted', options: { unique: false } },
+            sync_rev: { keyPath: 'rev', options: { unique: false } },
+        },
+        fields: {
+            id: { type: 'string', required: true },
+            day_of_month: { type: 'number', required: true },
+            amount: { type: 'number', required: true },
+            description: { type: 'string', required: false },
+            account_id: { type: 'string', required: true },
+            category_id: { type: 'string', required: true },
+            payee_id: { type: 'string', required: true },
+            expense_type_id: { type: 'string', required: true },
+            is_active: { type: 'number', required: true },
+        }
+    },
+};
+
+
 class IndexedDBWrapper {
     constructor(dbName = 'ratchou', version = 1) {
         this.dbName = dbName;
         this.version = version;
         this.db = null;
+    }
+
+    /**
+     * Public method to get the database schema
+     */
+    getSchema() {
+        return DATABASE_SCHEMA;
     }
 
     /**
@@ -73,96 +223,31 @@ class IndexedDBWrapper {
     }
 
     /**
-     * Create all initial object stores with their indexes
+     * Create all initial object stores with their indexes based on the schema
      */
     createInitialStores(db, transaction) {
-        // Helper function to create a store if it doesn't exist
-        const ensureStore = (storeName, options) => {
-            return db.objectStoreNames.contains(storeName)
-                ? transaction.objectStore(storeName)
-                : db.createObjectStore(storeName, options);
-        };
+        for (const storeName in DATABASE_SCHEMA) {
+            const schema = DATABASE_SCHEMA[storeName];
 
-        // Helper function to create an index if it doesn't exist
-        const ensureIndex = (store, indexName, keyPath, options) => {
-            if (!store.indexNames.contains(indexName)) {
-                store.createIndex(indexName, keyPath, options);
+            // Helper function to create a store if it doesn't exist
+            const ensureStore = (name, options) => {
+                return db.objectStoreNames.contains(name)
+                    ? transaction.objectStore(name)
+                    : db.createObjectStore(name, options);
+            };
+
+            // Create the store
+            const store = ensureStore(storeName, { keyPath: schema.keyPath });
+
+            // Create indexes
+            for (const indexName in schema.indexes) {
+                const index = schema.indexes[indexName];
+                if (!store.indexNames.contains(indexName)) {
+                    store.createIndex(indexName, index.keyPath, index.options);
+                }
             }
-        };
-
-        // 1. User store
-        const userStore = ensureStore('UTILISATEUR', { keyPath: 'code_acces' });
-        ensureIndex(userStore, 'device_id', 'device_id', { unique: false });
-        ensureIndex(userStore, 'updated_at', 'updated_at', { unique: false });
-        ensureIndex(userStore, 'is_deleted', 'is_deleted', { unique: false });
-        ensureIndex(userStore, 'sync_rev', 'rev', { unique: false });
-
-        // 2. Comptes store
-        const comptesStore = ensureStore('COMPTES', { keyPath: 'id' });
-        ensureIndex(comptesStore, 'name', 'nom_compte', { unique: true });
-        ensureIndex(comptesStore, 'principal', 'is_principal', { unique: false });
-        ensureIndex(comptesStore, 'device_id', 'device_id', { unique: false });
-        ensureIndex(comptesStore, 'updated_at', 'updated_at', { unique: false });
-        ensureIndex(comptesStore, 'is_deleted', 'is_deleted', { unique: false });
-        ensureIndex(comptesStore, 'sync_rev', 'rev', { unique: false });
-
-        // 3. Categories store
-        const categoriesStore = ensureStore('CATEGORIES', { keyPath: 'id' });
-        ensureIndex(categoriesStore, 'name', 'libelle', { unique: true });
-        ensureIndex(categoriesStore, 'mandatory', 'is_mandatory', { unique: false });
-        ensureIndex(categoriesStore, 'usage_count', 'usage_count', { unique: false });
-        ensureIndex(categoriesStore, 'device_id', 'device_id', { unique: false });
-        ensureIndex(categoriesStore, 'updated_at', 'updated_at', { unique: false });
-        ensureIndex(categoriesStore, 'is_deleted', 'is_deleted', { unique: false });
-        ensureIndex(categoriesStore, 'sync_rev', 'rev', { unique: false });
-
-        // 4. Beneficiaires store
-        const beneficiairesStore = ensureStore('BENEFICIAIRES', { keyPath: 'id' });
-        ensureIndex(beneficiairesStore, 'name', 'libelle', { unique: true });
-        ensureIndex(beneficiairesStore, 'usage_count', 'usage_count', { unique: false });
-        ensureIndex(beneficiairesStore, 'device_id', 'device_id', { unique: false });
-        ensureIndex(beneficiairesStore, 'updated_at', 'updated_at', { unique: false });
-        ensureIndex(beneficiairesStore, 'is_deleted', 'is_deleted', { unique: false });
-        ensureIndex(beneficiairesStore, 'sync_rev', 'rev', { unique: false });
-
-        // 5. Type depenses store
-        const typeDepensesStore = ensureStore('TYPE_DEPENSES', { keyPath: 'id' });
-        ensureIndex(typeDepensesStore, 'name', 'libelle', { unique: true });
-        ensureIndex(typeDepensesStore, 'default', 'is_default', { unique: false });
-        ensureIndex(typeDepensesStore, 'device_id', 'device_id', { unique: false });
-        ensureIndex(typeDepensesStore, 'updated_at', 'updated_at', { unique: false });
-        ensureIndex(typeDepensesStore, 'is_deleted', 'is_deleted', { unique: false });
-        ensureIndex(typeDepensesStore, 'sync_rev', 'rev', { unique: false });
-
-        // 6. Mouvements store
-        const mouvementsStore = ensureStore('MOUVEMENTS', { keyPath: 'id' });
-        ensureIndex(mouvementsStore, 'date', 'date_mouvement', { unique: false });
-        ensureIndex(mouvementsStore, 'account_id', 'account_id', { unique: false });
-        ensureIndex(mouvementsStore, 'category_id', 'category_id', { unique: false });
-        ensureIndex(mouvementsStore, 'payee_id', 'payee_id', { unique: false });
-        ensureIndex(mouvementsStore, 'expense_type_id', 'expense_type_id', { unique: false });
-        ensureIndex(mouvementsStore, 'amount', 'amount', { unique: false });
-        ensureIndex(mouvementsStore, 'date_account', ['date_mouvement', 'account_id'], { unique: false });
-        ensureIndex(mouvementsStore, 'reconcile_key', ['account_id', 'date_mouvement', 'amount'], { unique: false });
-        ensureIndex(mouvementsStore, 'device_id', 'device_id', { unique: false });
-        ensureIndex(mouvementsStore, 'updated_at', 'updated_at', { unique: false });
-        ensureIndex(mouvementsStore, 'is_deleted', 'is_deleted', { unique: false });
-        ensureIndex(mouvementsStore, 'sync_rev', 'rev', { unique: false });
-
-        // 7. Depenses fixes store
-        const depensesFixesStore = ensureStore('DEPENSES_FIXES', { keyPath: 'id' });
-        ensureIndex(depensesFixesStore, 'account_id', 'account_id', { unique: false });
-        ensureIndex(depensesFixesStore, 'category_id', 'category_id', { unique: false });
-        ensureIndex(depensesFixesStore, 'payee_id', 'payee_id', { unique: false });
-        ensureIndex(depensesFixesStore, 'expense_type_id', 'expense_type_id', { unique: false });
-        ensureIndex(depensesFixesStore, 'active', 'is_active', { unique: false });
-        ensureIndex(depensesFixesStore, 'day_month', 'day_of_month', { unique: false });
-        ensureIndex(depensesFixesStore, 'device_id', 'device_id', { unique: false });
-        ensureIndex(depensesFixesStore, 'updated_at', 'updated_at', { unique: false });
-        ensureIndex(depensesFixesStore, 'is_deleted', 'is_deleted', { unique: false });
-        ensureIndex(depensesFixesStore, 'sync_rev', 'rev', { unique: false });
-
-        console.log('All object stores and indexes are set up.');
+        }
+        console.log('All object stores and indexes are set up based on the schema.');
     }
 
     /**

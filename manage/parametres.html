@@ -88,12 +88,59 @@
             border: 1px solid #dee2e6;
         }
 
+        /* Environment badges */
+        #app-version-display .badge {
+            font-size: 0.7em;
+            vertical-align: middle;
+        }
+
+        /* Badge color customizations */
+        .badge.bg-warning {
+            color: #000 !important; /* Dark text on orange background for DEV */
+        }
+
+        .badge.bg-success {
+            color: #fff !important; /* White text on green background for PROD */
+        }
+
+        .badge.bg-info {
+            color: #000 !important; /* Dark text on light blue background for LOCAL */
+        }
+
+        .badge.bg-secondary {
+            color: #fff !important; /* White text on gray background for OTHER */
+        }
+
         </style>
+
+    <!-- Prevent dark mode flash -->
+    <style>
+        /* Prevent flash by setting initial colors based on system preference */
+        @media (prefers-color-scheme: dark) {
+            html { background-color: #212529; color: #dee2e6; }
+        }
+    </style>
+    <script>
+        (function() {
+            const theme = localStorage.getItem('ratchou-theme');
+            const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+
+            let resolvedTheme = 'light';
+            if (theme === 'dark' || (theme === 'auto' && prefersDark) || (!theme && prefersDark)) {
+                resolvedTheme = 'dark';
+            }
+
+            document.documentElement.setAttribute('data-bs-theme', resolvedTheme);
+            if (resolvedTheme === 'dark') {
+                document.documentElement.classList.add('dark-theme');
+            }
+        })();
+    </script>
 </head>
-<body class="bg-light">
+<body>
     
     <!-- Loading Overlay -->
-    <div id="loadingOverlay" class="position-fixed top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center bg-white bg-opacity-75" style="z-index: 9999; display: none !important;">
+    <div id="loadingOverlay" class="position-fixed top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center bg-body bg-opacity-75" style="z-index: 9999; display: none !important;">
         <div class="spinner-border text-primary" role="status">
             <span class="visually-hidden">Chargement...</span>
         </div>
@@ -129,6 +176,47 @@
                 </div>
             </div>
 
+            <!-- Appearance Accordion -->
+            <div class="accordion-item" id="appearance-accordion">
+                <h2 class="accordion-header">
+                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-appearance">
+                        🎨 Apparence - Thème d'affichage
+                    </button>
+                </h2>
+                <div id="collapse-appearance" class="accordion-collapse collapse" data-bs-parent="#parametersAccordion">
+                    <div class="accordion-body">
+                        <p>Personnalisez l'apparence de l'application selon vos préférences.</p>
+
+                        <div class="mb-4">
+                            <label class="form-label fw-bold">Thème d'affichage :</label>
+                            <div class="btn-group w-100" role="group" aria-label="Theme selection">
+                                <input type="radio" class="btn-check" name="theme-options" id="theme-auto" value="auto">
+                                <label class="btn btn-outline-primary" for="theme-auto">
+                                    🔄 Automatique
+                                    <small class="d-block text-muted">Suit les préférences système</small>
+                                </label>
+
+                                <input type="radio" class="btn-check" name="theme-options" id="theme-light" value="light">
+                                <label class="btn btn-outline-primary" for="theme-light">
+                                    ☀️ Clair
+                                    <small class="d-block text-muted">Mode jour</small>
+                                </label>
+
+                                <input type="radio" class="btn-check" name="theme-options" id="theme-dark" value="dark">
+                                <label class="btn btn-outline-primary" for="theme-dark">
+                                    🌙 Sombre
+                                    <small class="d-block text-muted">Mode nuit</small>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="alert alert-info">
+                            <strong>ℹ️ Information :</strong> Cette préférence est sauvegardée localement sur cet appareil uniquement.
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <!-- Backup Accordion -->
             <div class="accordion-item" id="backup-accordion">
                 <h2 class="accordion-header">
@@ -138,11 +226,31 @@
                 </h2>
                 <div id="collapse-backup" class="accordion-collapse collapse" data-bs-parent="#parametersAccordion">
                     <div class="accordion-body">
-                        <p>Sauvegardez l'ensemble de vos données dans un fichier sécurisé au format JSON.</p>
+                        <p>Sauvegardez l'ensemble de vos données dans un fichier au format ZIP.</p>
                         <p class="text-muted small">Les détails sur le contenu de la sauvegarde vous seront présentés avant la confirmation finale.</p>
                         <div class="text-center mt-3">
                             <a href="export.html" class="btn btn-success">
                                 📤 Exporter les données
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- PWA Installation Accordion -->
+            <div class="accordion-item" id="pwa-accordion">
+                <h2 class="accordion-header">
+                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-pwa">
+                        📱 Application PWA - Installation
+                    </button>
+                </h2>
+                <div id="collapse-pwa" class="accordion-collapse collapse" data-bs-parent="#parametersAccordion">
+                    <div class="accordion-body">
+                        <p>Installez Ratchou comme une application native sur votre appareil pour une meilleure expérience.</p>
+                        <p class="text-muted small">Accès aux informations système, guide d'installation et statut PWA détaillé.</p>
+                        <div class="text-center mt-3">
+                            <a href="pwa.html" class="btn btn-primary">
+                                📱 Gérer l'installation PWA
                             </a>
                         </div>
                     </div>
@@ -192,7 +300,7 @@
                 <div id="collapse-about" class="accordion-collapse collapse" data-bs-parent="#informationAccordion">
                     <div class="accordion-body">
                         <div class="text-center mb-4">
-                            <h5>Ratchou v2.0</h5>
+                            <h5 id="app-version-display">Ratchou v...</h5>
                             <p class="text-muted">Gestion familiale des dépenses - Version IndexedDB</p>
                         </div>
                         
@@ -305,7 +413,7 @@
                         <div class="row mt-4">
                             <div class="col-12">
                                 <h6>⚖️ Droit applicable et juridiction</h6>
-                                <p>Les présentes mentions légales sont régies par le droit français. En cas de litige, les tribunaux français seront seuls compétents.</p>
+                                <p>Les présentes mentions légales sont régies par le droit français. En cas de litige, les tribunaux français de Montauban (Tarn et Garonne) seront seuls compétents.</p>
                             </div>
                         </div>
                     </div>
@@ -321,7 +429,7 @@
                 </h2>
                 <div id="collapse-privacy" class="accordion-collapse collapse" data-bs-parent="#informationAccordion">
                     <div class="accordion-body">
-                        <div class="custom-box custom-box-success">
+                        <div class="alert alert-success">
                             <h6 class="alert-heading">🛡️ Confidentialité maximale</h6>
                             <p class="mb-0">
                                 Ratchou a été conçu avec la confidentialité comme priorité absolue. 
@@ -430,8 +538,10 @@
     <!-- Sidebar sera injecté par le composant sidebar -->
 
     <script src="../assets/js/bootstrap.bundle.min.js"></script>
-    
+
     <!-- Core Ratchou Scripts -->
+    <script src="../js/core/theme-manager.js"></script>
+    <script src="../js/core/private-mode-detector.js"></script>
     <script src="../js/core/utils.js"></script>
     <script src="../js/core/indexeddb-wrapper.js"></script>
     <script src="../js/core/models/base-model.js"></script>
@@ -452,6 +562,5 @@
     
     <!-- PWA Scripts -->
     <script src="../js/pwa/install.js"></script>
-    <script src="../js/pwa/persistence.js"></script>
 </body>
 </html>

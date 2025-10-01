@@ -82,8 +82,6 @@ class DashboardController {
             // Setup form validation
             this.setupFormValidation();
             
-            // Initialize tooltips
-            this.initializeTooltips();
             
             this.isInitialized = true;
             this.hideLoading();
@@ -94,10 +92,6 @@ class DashboardController {
                 amountInput.focus();
             }
             
-            // Show tooltips automatically after page load (only on first visit)
-            setTimeout(() => {
-                this.showAutoTooltipsOnce();
-            }, 1000); // Wait 1 second after initialization
             
             console.log('Dashboard initialized successfully');
             
@@ -135,10 +129,6 @@ class DashboardController {
             this.resetForm();
         });
 
-        // Test tooltips button
-        document.getElementById('testTooltipsBtn').addEventListener('click', () => {
-            this.showAutoTooltips();
-        });
 
         // Setup panel buttons
         this.setupPanelButtons();
@@ -244,7 +234,6 @@ class DashboardController {
 
         // Import/Export functionality now handled by import-export.js module
 
-        // Amount input - no formatting needed, just validation
 
         // Transaction row click (for future editing)
         this.transactionsTable.addEventListener('click', (e) => {
@@ -353,8 +342,11 @@ class DashboardController {
             }
 
             const formData = new FormData(this.transactionForm);
+            const montantValue = parseFloat(formData.get('montant'));
+            const currency = this.currentAccount?.currency || 'EUR';
+
             const transactionData = {
-                amount: Math.round(parseFloat(formData.get('montant')) * 100), // Convert to centimes
+                amount: RatchouUtils.currency.toStorageUnit(montantValue, currency),
                 category_id: formData.get('categorie_id') || null,
                 payee_id: formData.get('beneficiaire_id') || null,
                 expense_type_id: formData.get('type_depense_id') || null,
@@ -375,7 +367,7 @@ class DashboardController {
                 if (duplicateCheckbox.checked) {
                     const duplicationResult = await ratchouApp.models.transactions.duplicateTransactionToMainAccount(result.data.id);
                     if (duplicationResult.success) {
-                        this.showSuccess('Transaction copiée sur le compte principal');
+                        // Pas de toast pour ne pas masquer l'animation du solde
                         // Need to refresh ALL accounts since duplication affects multiple accounts
                         await this.refreshAllAccountsBalance();
                     } else {
@@ -391,7 +383,7 @@ class DashboardController {
                 this.animateBalanceUpdate(oldBalance, newBalance, transactionData.amount);
 
                 this.resetForm();
-                await this.loadRecentTransactions();
+                await this.loadRecentTransactions(result.data.id); // Pass new transaction ID for animation
             } else {
                 this.showError('Erreur: ' + result.message);
             }
@@ -408,23 +400,45 @@ class DashboardController {
      * Update account display in header
      */
     updateAccountDisplay() {
-        if (!this.currentAccount) return; 
-        
+        if (!this.currentAccount) return;
+
         document.getElementById('currentAccountName').textContent = this.currentAccount.nom_compte;
-        
-        const balance = RatchouUtils.currency.format(this.currentAccount.balance);
+
+        const currency = this.currentAccount.currency || 'EUR';
+        const balance = RatchouUtils.currency.formatWithCurrency(this.currentAccount.balance, currency);
         const balanceElement = document.getElementById('currentAccountBalance');
         balanceElement.textContent = balance;
-        
+
         // Set color based on balance
-        balanceElement.className = 'account-balance ' + 
+        balanceElement.className = 'account-balance ' +
             (this.currentAccount.balance >= 0 ? 'text-success' : 'text-danger');
+
+        // Update amount input step based on currency
+        this.updateAmountInputStep(currency);
+    }
+
+    /**
+     * Update amount input step attribute based on currency
+     * BTC needs 8 decimals, EUR/USD need 2 decimals
+     */
+    updateAmountInputStep(currency) {
+        const amountInput = document.getElementById('montant');
+        if (!amountInput) return;
+
+        if (currency === 'BTC') {
+            amountInput.step = '0.00000001'; // 1 satoshi
+            amountInput.placeholder = '0.00000000';
+        } else {
+            amountInput.step = '0.01';
+            amountInput.placeholder = '0.00';
+        }
     }
 
     /**
      * Update transactions table (simple list without date grouping)
+     * @param {number|null} newTransactionId - ID of newly created transaction to animate
      */
-    updateTransactionsTable() {
+    updateTransactionsTable(newTransactionId = null) {
         if (!this.recentTransactions || this.recentTransactions.length === 0) {
             this.transactionsTable.innerHTML = `
                 <tr>
@@ -441,12 +455,18 @@ class DashboardController {
         this.recentTransactions.forEach(transaction => {
             const transactionDate = new Date(transaction.date_mouvement).toLocaleDateString('fr-FR');
             const transactionTime = new Date(transaction.date_mouvement).toLocaleTimeString('fr-FR', {hour: '2-digit', minute:'2-digit'});
-            
-            const amount = RatchouUtils.currency.format(transaction.amount);
-            const amountClass = transaction.amount >= 0 ? 'amount-positive' : 'amount-negative';
-            
+
+            // Use the current account's currency for display
+            const currency = this.currentAccount?.currency || 'EUR';
+            const amount = RatchouUtils.currency.formatWithCurrency(transaction.amount, currency);
+            const amountValue = RatchouUtils.currency.fromStorageUnit(transaction.amount, currency);
+            const amountClass = amountValue >= 0 ? 'amount-positive' : 'amount-negative';
+
+            const isNewTransaction = newTransactionId && transaction.id == newTransactionId;
+            const animationClass = isNewTransaction ? 'movement-new' + (amountValue < 0 ? ' expense' : '') : '';
+
             html += `
-                <tr class="movement-row" data-transaction-id="${transaction.id}" onclick="editMovement('${transaction.id}')">
+                <tr class="movement-row ${animationClass}" data-transaction-id="${transaction.id}" onclick="editMovement('${transaction.id}')">
                     <td class="text-center" style="width: 100px;">
                         <span class="${amountClass}">${amount}</span>
                         <br><small class="text-muted">${transactionDate} ${transactionTime}</small>
@@ -460,6 +480,35 @@ class DashboardController {
         });
         
         this.transactionsTable.innerHTML = html;
+
+        // If a new transaction was added, set up animation cleanup
+        if (newTransactionId) {
+            this.setupNewTransactionAnimation(newTransactionId);
+        }
+    }
+
+    /**
+     * Setup animation cleanup for newly added transaction
+     * @param {number} transactionId - ID of the new transaction
+     */
+    setupNewTransactionAnimation(transactionId) {
+        // Find the transaction row
+        const transactionRow = document.querySelector(`tr[data-transaction-id="${transactionId}"]`);
+        if (!transactionRow) return;
+
+        // Remove animation classes after 3.5 seconds (0.5s animation + 3s highlight)
+        setTimeout(() => {
+            if (transactionRow && transactionRow.classList.contains('movement-new')) {
+                transactionRow.classList.add('fade-to-normal');
+
+                // Remove all animation classes after transition completes
+                setTimeout(() => {
+                    if (transactionRow) {
+                        transactionRow.classList.remove('movement-new', 'expense', 'fade-to-normal');
+                    }
+                }, 3000); // Wait for background transition to complete
+            }
+        }, 500); // Wait for insert animation to complete
     }
 
     /**
@@ -497,31 +546,43 @@ class DashboardController {
             
             // Get fresh accounts data from database to ensure latest balances
             const freshAccounts = await ratchouApp.models.accounts.getAll();
-            
+
             if (freshAccounts.length === 0) {
                 accountsList.innerHTML = '<p class="text-muted text-center">Aucun compte disponible</p>';
                 return;
             }
 
+            // Trier les comptes : principal en premier, puis par ordre alphabétique
+            const sortedAccounts = freshAccounts.sort((a, b) => {
+                // Le compte principal passe toujours en premier
+                if (a.is_principal && !b.is_principal) return -1;
+                if (!a.is_principal && b.is_principal) return 1;
+
+                // Pour les comptes non-principaux, tri alphabétique
+                return a.nom_compte.localeCompare(b.nom_compte);
+            });
+
             // Update our cache with fresh data
-            this.allAccounts = freshAccounts;
+            this.allAccounts = sortedAccounts;
             
             // Also update current account with fresh data if it exists in the list
-            const updatedCurrentAccount = freshAccounts.find(acc => acc.id === this.currentAccount?.id);
+            const updatedCurrentAccount = sortedAccounts.find(acc => acc.id === this.currentAccount?.id);
             if (updatedCurrentAccount) {
                 this.currentAccount = updatedCurrentAccount;
                 // Update the display in the header with fresh balance
                 this.updateAccountDisplay();
             }
 
-            accountsList.innerHTML = freshAccounts.map(account => {
-                const balance = RatchouUtils.currency.format(account.balance);
+            accountsList.innerHTML = sortedAccounts.map(account => {
+                const currency = account.currency || 'EUR';
+                const balance = RatchouUtils.currency.formatWithCurrency(account.balance, currency);
+                const balanceAmount = RatchouUtils.currency.fromStorageUnit(account.balance, currency);
                 const isSelected = account.id === this.currentAccount.id;
-                const balanceClass = account.balance >= 0 ? 'text-success' : 'text-danger';
-                
+                const balanceClass = balanceAmount >= 0 ? 'text-success' : 'text-danger';
+
                 return `
-                    <div class="account-item d-flex justify-content-between align-items-center p-3 border-bottom ${isSelected ? 'bg-primary bg-opacity-10' : ''}" 
-                         style="cursor: pointer;" 
+                    <div class="account-item d-flex justify-content-between align-items-center p-3 border-bottom ${isSelected ? 'bg-primary bg-opacity-10' : ''}"
+                         style="cursor: pointer;"
                          data-account-id="${account.id}">
                         <div>
                             <strong>${account.nom_compte}</strong>
@@ -574,7 +635,6 @@ class DashboardController {
             await this.loadRecentTransactions();
             
             this.accountSelectModal.hide();
-            this.showSuccess(`Compte "${account.nom_compte}" sélectionné`);
             
         } catch (error) {
             console.error('Error selecting account:', error);
@@ -584,15 +644,16 @@ class DashboardController {
 
     /**
      * Load recent transactions for current account
+     * @param {number|null} newTransactionId - ID of newly created transaction to animate
      */
-    async loadRecentTransactions() {
+    async loadRecentTransactions(newTransactionId = null) {
         try {
             if (!this.currentAccount) return; 
             
             const transactions = await ratchouApp.models.transactions.getRecentByAccount(this.currentAccount.id, 20);
             this.recentTransactions = await ratchouApp.models.transactions.getEnriched(transactions);
-            
-            this.updateTransactionsTable();
+
+            this.updateTransactionsTable(newTransactionId);
             
         } catch (error) {
             console.error('Error loading recent transactions:', error);
@@ -645,14 +706,18 @@ class DashboardController {
      * Setup balance correction modal
      */
     setupBalanceModal() {
-        if (!this.currentAccount) return; 
-        
+        if (!this.currentAccount) return;
+
         const currentBalanceSpan = document.getElementById('currentBalance');
         const newBalanceInput = document.getElementById('newBalance');
-        
-        const currentBalance = RatchouUtils.currency.toEuros(this.currentAccount.balance);
-        currentBalanceSpan.textContent = RatchouUtils.currency.format(this.currentAccount.balance);
-        newBalanceInput.value = currentBalance.toFixed(2);
+
+        const currency = this.currentAccount.currency || 'EUR';
+        const currentBalance = RatchouUtils.currency.fromStorageUnit(this.currentAccount.balance, currency);
+        currentBalanceSpan.textContent = RatchouUtils.currency.formatWithCurrency(this.currentAccount.balance, currency);
+
+        // Set appropriate decimal places for the input
+        const decimals = currency === 'BTC' ? 8 : 2;
+        newBalanceInput.value = currentBalance.toFixed(decimals);
         newBalanceInput.focus();
         newBalanceInput.select();
     }
@@ -765,9 +830,30 @@ class DashboardController {
             const enriched = await ratchouApp.models.transactions.getEnriched([transaction]);
             const enrichedTransaction = enriched[0];
             
+            // Get transaction account to determine currency
+            const transactionAccount = this.allAccounts.find(acc => acc.id === transaction.account_id);
+            const currency = transactionAccount?.currency || 'EUR';
+
             // Fill form fields
             document.getElementById('edit_movement_id').value = transaction.id;
-            document.getElementById('edit_montant').value = (transaction.amount / 100).toFixed(2); // Convert from centimes to euros
+
+            // Convert amount using currency-aware conversion
+            const amountValue = RatchouUtils.currency.fromStorageUnit(transaction.amount, currency);
+            const editMontantInput = document.getElementById('edit_montant');
+
+            // Set appropriate input step and value based on currency
+            if (currency === 'BTC') {
+                editMontantInput.step = '0.00000001';
+                editMontantInput.value = amountValue.toFixed(8);
+            } else {
+                editMontantInput.step = '0.01';
+                editMontantInput.value = amountValue.toFixed(2);
+            }
+
+            // Update currency symbol
+            const currencySymbol = RatchouUtils.currency.getSymbol(currency);
+            document.getElementById('edit_currency_symbol').textContent = currencySymbol;
+
             document.getElementById('edit_categorie_id').value = transaction.category_id || '';
             document.getElementById('edit_beneficiaire_id').value = transaction.payee_id || '';
             document.getElementById('edit_type_depense_id').value = transaction.expense_type_id || '';
@@ -775,10 +861,9 @@ class DashboardController {
 
             // Update button texts
             this.updateEditButtons(enrichedTransaction);
-            
+
             // Show/hide the duplicate button
             const duplicateBtn = document.getElementById('duplicateToMainBtn');
-            const transactionAccount = this.allAccounts.find(acc => acc.id === transaction.account_id);
             if (transactionAccount && !transactionAccount.is_principal) {
                 duplicateBtn.style.display = 'block';
             } else {
@@ -844,10 +929,19 @@ class DashboardController {
         try {
             const form = document.getElementById('editMovementForm');
             const formData = new FormData(form);
-            
+
+            // Get the transaction to determine its currency
+            const transactionId = formData.get('movement_id');
+            const transaction = await ratchouApp.models.transactions.getById(transactionId);
+            const transactionAccount = this.allAccounts.find(acc => acc.id === transaction.account_id);
+            const currency = transactionAccount?.currency || 'EUR';
+
+            // Convert amount using currency-aware conversion
+            const montantValue = parseFloat(formData.get('montant'));
+
             const updateData = {
-                id: formData.get('movement_id'),
-                amount: Math.round(parseFloat(formData.get('montant')) * 100), // Convert to centimes
+                id: transactionId,
+                amount: RatchouUtils.currency.toStorageUnit(montantValue, currency),
                 category_id: formData.get('categorie_id') || null,
                 payee_id: formData.get('beneficiaire_id') || null,
                 expense_type_id: formData.get('type_depense_id') || null,
@@ -908,7 +1002,7 @@ class DashboardController {
             const duplicationResult = await ratchouApp.models.transactions.duplicateTransactionToMainAccount(transactionId);
 
             if (duplicationResult.success) {
-                this.showSuccess('Transaction copiée sur le compte principal');
+                // Pas de toast pour ne pas masquer l'animation du solde
                 // Refresh all accounts since duplication affects multiple accounts
                 await this.refreshAllAccountsBalance();
                 // Optionally, close the modal and refresh, or just disable the button
@@ -1052,7 +1146,7 @@ class DashboardController {
             item.className = 'list-group-item list-group-item-action';
             const usageDisplay = this.categoriesSortMode === 'usage' && (category.usage_count || 0) > 0 ? 
                 ` <small class="text-muted">(${category.usage_count || 0})</small>` : '';
-            item.innerHTML = `${category.libelle}${usageDisplay} ${category.is_mandatory ? '<span class="badge bg-warning ms-2">Obligatoire</span>' : ''}`;
+            item.innerHTML = `📂 ${category.libelle}`;
             item.setAttribute('data-id', category.id);
             item.addEventListener('click', () => this.selectPanelItem(category.id, category.libelle, '📂'));
             categoriesList.appendChild(item);
@@ -1074,7 +1168,7 @@ class DashboardController {
             item.className = 'list-group-item list-group-item-action';
             const usageDisplay = this.payeesSortMode === 'usage' && (payee.usage_count || 0) > 0 ? 
                 ` <small class="text-muted">(${payee.usage_count || 0})</small>` : '';
-            item.innerHTML = `${payee.libelle}${usageDisplay}`;
+            item.innerHTML = `👥 ${payee.libelle}`;
             item.setAttribute('data-id', payee.id);
             item.addEventListener('click', () => this.selectPanelItem(payee.id, payee.libelle, '👥'));
             beneficiairesList.appendChild(item);
@@ -1094,7 +1188,7 @@ class DashboardController {
         this.expenseTypes.forEach(type => {
             const item = document.createElement('button');
             item.className = 'list-group-item list-group-item-action';
-            item.innerHTML = `${type.libelle} ${type.is_default ? '<span class="badge bg-primary ms-2">Par défaut</span>' : ''}`;
+            item.innerHTML = `💳 ${type.libelle}`;
             item.setAttribute('data-id', type.id);
             item.addEventListener('click', () => this.selectPanelItem(type.id, type.libelle, '💳'));
             typeDepensesList.appendChild(item);
@@ -1184,6 +1278,12 @@ class DashboardController {
         this.transactionForm.reset();
         this.transactionForm.classList.remove('was-validated');
         
+        // Explicitly clear all hidden form fields to prevent panel selection persistence
+        document.getElementById('categorie_id').value = '';
+        document.getElementById('beneficiaire_id').value = '';
+        document.getElementById('type_depense_id').value = '';
+        document.getElementById('rmq').value = '';
+        
         // Reset all button styles to original
         const buttons = [
             document.querySelector('[data-panel-target="#categoriePanel"]'),
@@ -1207,14 +1307,18 @@ class DashboardController {
         
         // Clear remark modal
         document.getElementById('remarqueText').value = '';
-        
+
         // Set default expense type again
         this.setDefaultExpenseType();
+
+        // Restore duplicate checkbox state based on account configuration
+        this.toggleDuplicateCheckbox();
         
         // Set current account
         if (this.currentAccount) {
             document.getElementById('compte_id').value = this.currentAccount.id;
         }
+        
     }
 
     /**
@@ -1320,10 +1424,11 @@ class DashboardController {
         // Determine color class based on transaction amount (not balance difference)
         const isPositive = transactionAmount >= 0;
         const colorClass = isPositive ? 'balance-animating-positive' : 'balance-animating-negative';
-        
-        // Convert to euros for animation
-        const oldBalanceInEuros = RatchouUtils.currency.toEuros(oldBalance);
-        const newBalanceInEuros = RatchouUtils.currency.toEuros(newBalance);
+
+        // Convert to display amount for animation
+        const currency = this.currentAccount?.currency || 'EUR';
+        const oldBalanceAmount = RatchouUtils.currency.fromStorageUnit(oldBalance, currency);
+        const newBalanceAmount = RatchouUtils.currency.fromStorageUnit(newBalance, currency);
         
         // Add color class during animation
         balanceElement.classList.add(colorClass);
@@ -1331,22 +1436,22 @@ class DashboardController {
         // Animation parameters
         const duration = 800; // 800ms like the jQuery example
         const startTime = performance.now();
-        const difference = newBalanceInEuros - oldBalanceInEuros;
-        
+        const difference = newBalanceAmount - oldBalanceAmount;
+
         // Animation function
         const animate = (currentTime) => {
             const elapsed = currentTime - startTime;
             const progress = Math.min(elapsed / duration, 1);
-            
+
             // Easing function (similar to jQuery swing)
             const easeProgress = 0.5 - Math.cos(progress * Math.PI) / 2;
-            
+
             // Calculate current value
-            const currentValue = oldBalanceInEuros + (difference * easeProgress);
-            
+            const currentValue = oldBalanceAmount + (difference * easeProgress);
+
             // Update display with formatted currency
-            const currentValueInCents = Math.round(currentValue * 100);
-            balanceElement.textContent = RatchouUtils.currency.format(currentValueInCents);
+            const currentValueInStorage = RatchouUtils.currency.toStorageUnit(currentValue, currency);
+            balanceElement.textContent = RatchouUtils.currency.formatWithCurrency(currentValueInStorage, currency);
             
             // Continue animation or finish
             if (progress < 1) {
@@ -1367,7 +1472,10 @@ class DashboardController {
         requestAnimationFrame(animate);
         
         // Log for debugging
-        console.log(`Balance animated: ${RatchouUtils.currency.format(oldBalance)} → ${RatchouUtils.currency.format(newBalance)} (transaction: ${isPositive ? '+' : ''}${RatchouUtils.currency.format(transactionAmount)})`);
+        const oldBalFormatted = RatchouUtils.currency.formatWithCurrency(oldBalance, currency);
+        const newBalFormatted = RatchouUtils.currency.formatWithCurrency(newBalance, currency);
+        const transAmountFormatted = RatchouUtils.currency.formatWithCurrency(Math.abs(transactionAmount), currency);
+        console.log(`Balance animated: ${oldBalFormatted} → ${newBalFormatted} (transaction: ${isPositive ? '+' : '-'}${transAmountFormatted})`);
     }
 
     /**
@@ -1455,7 +1563,8 @@ class DashboardController {
             
             // Get current account balance
             const currentBalance = this.currentAccount ? this.currentAccount.balance : 0;
-            const currentBalanceInEuros = RatchouUtils.currency.toEuros(currentBalance);
+            const currency = this.currentAccount?.currency || 'EUR';
+            const currentBalanceInEuros = RatchouUtils.currency.fromStorageUnit(currentBalance, currency);
             
             // Get upcoming recurring expenses for the selected period
             const projection = await this.calculateFinancialProjection(days);
@@ -1519,7 +1628,10 @@ class DashboardController {
             });
             
             dayTransactions.forEach(transaction => {
-                const amountInEuros = RatchouUtils.currency.toEuros(transaction.amount);
+                // Note: For simplicity, assuming all transactions use the same currency as the account
+                // In a multi-currency system, each transaction would need its own currency field
+                const transactionCurrency = this.currentAccount?.currency || 'EUR';
+                const amountInEuros = RatchouUtils.currency.fromStorageUnit(transaction.amount, transactionCurrency);
                 dayProjection.transactions.push({
                     id: transaction.id,
                     libelle: transaction.category_name || 'Transaction',
@@ -1530,11 +1642,12 @@ class DashboardController {
                 });
                 dayProjection.totalAmount += amountInEuros;
             });
-            
+
             // Add recurring expenses that should be executed this day
             for (const expense of recurringExpenses) {
                 if (this.shouldExecuteRecurringExpense(expense, date)) {
-                    const amountInEuros = RatchouUtils.currency.toEuros(expense.amount);
+                    const expenseCurrency = this.currentAccount?.currency || 'EUR';
+                    const amountInEuros = RatchouUtils.currency.fromStorageUnit(expense.amount, expenseCurrency);
                     
                     // Keep the original sign of the amount (positive for income, negative for expenses)
                     dayProjection.transactions.push({
@@ -1642,13 +1755,19 @@ class DashboardController {
         }, 0);
 
         // Summary at the top
+        const currencySymbol = RatchouUtils.currency.getSymbol(currency);
+        const currentBalanceFormatted = RatchouUtils.currency.formatWithCurrency(RatchouUtils.currency.toStorageUnit(currentBalance, currency), currency);
+        const totalIncomesFormatted = RatchouUtils.currency.formatWithCurrency(RatchouUtils.currency.toStorageUnit(totalIncomes, currency), currency);
+        const totalExpensesFormatted = RatchouUtils.currency.formatWithCurrency(RatchouUtils.currency.toStorageUnit(Math.abs(totalExpenses), currency), currency);
+        const finalBalanceFormatted = RatchouUtils.currency.formatWithCurrency(RatchouUtils.currency.toStorageUnit(finalBalance, currency), currency);
+
         html += `
             <div class="row g-2 mb-4">
                 <div class="col-6 col-md-3">
                     <div class="card bg-primary text-white">
                         <div class="card-body text-center py-2">
                             <div class="small mb-1">💰 Solde actuel</div>
-                            <div class="fs-6 fw-bold">${RatchouUtils.currency.format(currentBalance * 100)}</div>
+                            <div class="fs-6 fw-bold">${currentBalanceFormatted}</div>
                         </div>
                     </div>
                 </div>
@@ -1656,7 +1775,7 @@ class DashboardController {
                     <div class="card bg-success text-white">
                         <div class="card-body text-center py-2">
                             <div class="small mb-1">📈 Recettes</div>
-                            <div class="fs-6 fw-bold">${RatchouUtils.currency.format(totalIncomes * 100)}</div>
+                            <div class="fs-6 fw-bold">${totalIncomesFormatted}</div>
                             <div class="small opacity-75">Sur ${days} jours</div>
                         </div>
                     </div>
@@ -1665,7 +1784,7 @@ class DashboardController {
                     <div class="card bg-danger text-white">
                         <div class="card-body text-center py-2">
                             <div class="small mb-1">📉 Dépenses</div>
-                            <div class="fs-6 fw-bold">${RatchouUtils.currency.format(totalExpenses * 100)}</div>
+                            <div class="fs-6 fw-bold">${totalExpensesFormatted}</div>
                             <div class="small opacity-75">Sur ${days} jours</div>
                         </div>
                     </div>
@@ -1674,7 +1793,7 @@ class DashboardController {
                     <div class="card ${finalBalance >= 0 ? 'bg-success' : 'bg-warning'} text-white">
                         <div class="card-body text-center py-2">
                             <div class="small mb-1">🎯 Solde final</div>
-                            <div class="fs-6 fw-bold">${RatchouUtils.currency.format(finalBalance * 100)}</div>
+                            <div class="fs-6 fw-bold">${finalBalanceFormatted}</div>
                             <div class="small opacity-75">Après ${days} jours</div>
                         </div>
                     </div>
@@ -1718,7 +1837,7 @@ class DashboardController {
                                         📅 ${dateStr}${todayLabel}
                                     </h6>
                                     <span class="badge ${runningBalance >= 0 ? 'bg-success' : 'bg-danger'}">
-                                        Solde: ${RatchouUtils.currency.format(runningBalance * 100)}
+                                        Solde: ${RatchouUtils.currency.formatWithCurrency(RatchouUtils.currency.toStorageUnit(runningBalance, currency), currency)}
                                     </span>
                                 </div>
                                 
@@ -1731,11 +1850,13 @@ class DashboardController {
                     const icon = transaction.type === 'recurring' ? '🔄' : (isPositive ? '📈' : '📉');
                     const typeLabel = transaction.type === 'recurring' ? ' (récurrent)' : '';
                     
+                    const transactionFormatted = RatchouUtils.currency.formatWithCurrency(Math.abs(transaction.amountInCents), currency);
+
                     html += `
-                        <div class="d-flex justify-content-between align-items-center mb-2 p-2 bg-light rounded">
+                        <div class="d-flex justify-content-between align-items-center mb-2 p-2 bg-body-secondary rounded">
                             <span class="fw-medium">${icon} ${transaction.libelle}${typeLabel}</span>
                             <span class="${amountClass} fw-bold">
-                                ${isPositive ? '+' : ''}${RatchouUtils.currency.format(Math.abs(transaction.amountInCents))}
+                                ${isPositive ? '+' : ''}${transactionFormatted}
                             </span>
                         </div>
                     `;
@@ -1743,11 +1864,12 @@ class DashboardController {
                 
                 if (day.transactions.length > 1) {
                     const netAmountClass = day.totalAmount >= 0 ? 'text-success' : 'text-danger';
+                    const dayTotalFormatted = RatchouUtils.currency.formatWithCurrency(RatchouUtils.currency.toStorageUnit(Math.abs(day.totalAmount), currency), currency);
                     html += `
                         <div class="d-flex justify-content-between align-items-center mt-3 pt-2 border-top border-2">
                             <strong>Total du jour:</strong>
                             <strong class="${netAmountClass} fs-5">
-                                ${day.totalAmount >= 0 ? '+' : ''}${RatchouUtils.currency.format(Math.abs(day.totalAmount) * 100)}
+                                ${day.totalAmount >= 0 ? '+' : ''}${dayTotalFormatted}
                             </strong>
                         </div>
                     `;
@@ -1765,7 +1887,7 @@ class DashboardController {
             
             // Summary info
             html += `
-                <div class="mt-4 p-3 bg-light rounded">
+                <div class="mt-4 p-3 bg-body-secondary rounded">
                     <div class="row text-center">
                         <div class="col-4">
                             <div class="small text-muted">Jours avec transactions</div>
@@ -1773,11 +1895,11 @@ class DashboardController {
                         </div>
                         <div class="col-4">
                             <div class="small text-muted">Total recettes</div>
-                            <div class="fw-bold text-success">${RatchouUtils.currency.format(totalIncomes * 100)}</div>
+                            <div class="fw-bold text-success">${totalIncomesFormatted}</div>
                         </div>
                         <div class="col-4">
                             <div class="small text-muted">Total dépenses</div>
-                            <div class="fw-bold text-danger">${RatchouUtils.currency.format(totalExpenses * 100)}</div>
+                            <div class="fw-bold text-danger">${totalExpensesFormatted}</div>
                         </div>
                     </div>
                 </div>
@@ -1984,15 +2106,48 @@ class DashboardController {
 
     /**
      * Shows or hides the 'duplicate transaction' checkbox based on the current account.
+     * Also auto-checks the checkbox if the account has auto_copy_to_principal enabled.
+     * Disables the checkbox if currencies don't match between current and principal accounts.
      */
-    toggleDuplicateCheckbox() {
+    async toggleDuplicateCheckbox() {
         const wrapper = document.getElementById('duplicate-transaction-wrapper');
         const checkbox = document.getElementById('duplicate-transaction');
+        const label = wrapper.querySelector('label');
+
         if (this.currentAccount && !this.currentAccount.is_principal) {
-            wrapper.style.display = 'block';
+            wrapper.classList.remove('d-none');
+
+            // Get principal account to check currency compatibility
+            try {
+                const principalAccount = await ratchouApp.models.accounts.getPrincipal();
+                const currentCurrency = this.currentAccount.currency || 'EUR';
+                const principalCurrency = principalAccount?.currency || 'EUR';
+
+                if (currentCurrency !== principalCurrency) {
+                    // Currencies don't match - disable checkbox and show message
+                    checkbox.disabled = true;
+                    checkbox.checked = false;
+                    label.innerHTML = `
+                        Copier vers le compte principal
+                        <small class="text-muted">(Devises incompatibles: ${currentCurrency} ≠ ${principalCurrency})</small>
+                    `;
+                } else {
+                    // Currencies match - enable checkbox
+                    checkbox.disabled = false;
+                    checkbox.checked = !!this.currentAccount.auto_copy_to_principal;
+                    label.innerHTML = 'Copier vers le compte principal';
+                }
+            } catch (error) {
+                console.error('Error checking currency compatibility:', error);
+                // In case of error, enable the checkbox with default behavior
+                checkbox.disabled = false;
+                checkbox.checked = !!this.currentAccount.auto_copy_to_principal;
+                label.innerHTML = 'Copier vers le compte principal';
+            }
         } else {
-            wrapper.style.display = 'none';
+            wrapper.classList.add('d-none');
             checkbox.checked = false;
+            checkbox.disabled = false;
         }
     }
 
@@ -2125,109 +2280,6 @@ class DashboardController {
         }
     }
 
-    /**
-     * Initialize tooltips system
-     */
-    initializeTooltips() {
-        // Initialize standard tooltips
-        const tooltipTriggerList = document.querySelectorAll('[data-bs-toggle="tooltip"]');
-        const tooltipList = [...tooltipTriggerList].map(tooltipTriggerEl => new bootstrap.Tooltip(tooltipTriggerEl));
-        
-        console.log('Tooltips initialized:', tooltipList.length);
-    }
-
-    /**
-     * Show automatic tooltips for user guidance
-     */
-    showAutoTooltips() {
-        // Elements with tooltips in the header
-        const accountName = document.getElementById('currentAccountName');
-        const accountBalance = document.getElementById('currentAccountBalance');
-        
-        const elementsToShow = [];
-        
-        // Add account name tooltip if element exists
-        if (accountName && accountName.hasAttribute('data-bs-toggle')) {
-            elementsToShow.push({
-                element: accountName,
-                delay: 0
-            });
-        }
-        
-        // Add account balance tooltip if element exists
-        if (accountBalance && accountBalance.hasAttribute('data-tooltip-message')) {
-            elementsToShow.push({
-                element: accountBalance,
-                delay: 3500 // Starts 500ms after first tooltip ends (3000ms + 500ms)
-            });
-        }
-        
-        // Show each tooltip with a delay, then hide after 2 seconds
-        elementsToShow.forEach(({element, delay}) => {
-            setTimeout(() => {
-                let tooltip = bootstrap.Tooltip.getInstance(element);
-                
-                // For elements with data-tooltip-message (like balance), create a temporary tooltip
-                if (element.hasAttribute('data-tooltip-message') && !tooltip) {
-                    const tooltipMessage = element.getAttribute('data-tooltip-message');
-                    const tooltipPlacement = element.getAttribute('data-tooltip-placement') || 'bottom';
-                    tooltip = new bootstrap.Tooltip(element, {
-                        title: tooltipMessage,
-                        placement: tooltipPlacement,
-                        trigger: 'manual'
-                    });
-                }
-                
-                // For regular tooltip elements, use existing or create new
-                if (!tooltip) {
-                    tooltip = new bootstrap.Tooltip(element, {
-                        trigger: 'manual'
-                    });
-                }
-                
-                tooltip.show();
-                
-                // Hide after 3 seconds
-                setTimeout(() => {
-                    tooltip.hide();
-                    
-                    // Dispose temporary tooltips to avoid conflicts
-                    if (element.hasAttribute('data-tooltip-message')) {
-                        setTimeout(() => {
-                            tooltip.dispose();
-                        }, 150);
-                    }
-                }, 3000);
-            }, delay);
-        });
-        
-        console.log('Auto-tooltips triggered for', elementsToShow.length, 'elements');
-    }
-
-    /**
-     * Show automatic tooltips only once per session
-     */
-    showAutoTooltipsOnce() {
-        // Check if tooltips have already been shown in this session
-        const hasSeenTooltips = sessionStorage.getItem('ratchou_dashboard_tooltips_shown');
-        
-        if (!hasSeenTooltips) {
-            // Show tooltips and mark as seen for this session
-            this.showAutoTooltips();
-            sessionStorage.setItem('ratchou_dashboard_tooltips_shown', 'true');
-            console.log('Session tooltips displayed and marked as seen');
-        } else {
-            console.log('Tooltips skipped - user has already seen them in this session');
-        }
-    }
-
-    /**
-     * Reset tooltips display for current session (for testing)
-     */
-    resetTooltipsFlag() {
-        sessionStorage.removeItem('ratchou_dashboard_tooltips_shown');
-        console.log('Session tooltips flag reset - they will show again on next dashboard load');
-    }
 }
 
 // Global functions used by HTML onclick handlers

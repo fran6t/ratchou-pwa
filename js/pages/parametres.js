@@ -46,7 +46,10 @@ class SettingsController {
             // Initialize elements and events
             this.initializeElements();
             this.setupEventListeners();
-            
+
+            // Update version display
+            await this.updateVersionDisplay();
+
             // Hide loading overlay
             this.hideLoading();
             
@@ -83,6 +86,9 @@ class SettingsController {
     setupEventListeners() {
         // Resource buttons
         this.setupResourceButtons();
+
+        // Theme management
+        this.setupThemeControls();
     }
 
     /**
@@ -105,6 +111,54 @@ class SettingsController {
         const shareBtn = document.getElementById('shareBtn');
         if (shareBtn) {
             shareBtn.addEventListener('click', this.shareApp.bind(this));
+        }
+    }
+
+    /**
+     * Setup theme controls and sync with current theme
+     */
+    setupThemeControls() {
+        // Get current theme preference
+        const currentPreference = window.themeManager ? window.themeManager.getUserPreference() : 'auto';
+
+        // Set the radio button based on current preference
+        const themeRadio = document.querySelector(`input[name="theme-options"][value="${currentPreference}"]`);
+        if (themeRadio) {
+            themeRadio.checked = true;
+        }
+
+        // Add event listeners to theme radio buttons
+        const themeRadios = document.querySelectorAll('input[name="theme-options"]');
+        themeRadios.forEach(radio => {
+            radio.addEventListener('change', (e) => {
+                if (e.target.checked && window.themeManager) {
+                    window.themeManager.setTheme(e.target.value);
+                    this.showSuccess(`Thème "${this.getThemeDisplayName(e.target.value)}" appliqué avec succès !`);
+                }
+            });
+        });
+    }
+
+    /**
+     * Get display name for theme value
+     */
+    getThemeDisplayName(theme) {
+        switch (theme) {
+            case 'auto': return 'Automatique';
+            case 'light': return 'Clair';
+            case 'dark': return 'Sombre';
+            default: return theme;
+        }
+    }
+
+    /**
+     * Show success message
+     */
+    showSuccess(message) {
+        if (typeof RatchouUtils !== 'undefined' && RatchouUtils.showToast) {
+            RatchouUtils.showToast(message, 'success');
+        } else {
+            console.log('Success:', message);
         }
     }
 
@@ -170,6 +224,40 @@ class SettingsController {
      */
     returnToDashboard() {
         location.replace('../dashboard.html');
+    }
+
+    /**
+     * Update version display with version from Service Worker and environment info
+     */
+    async updateVersionDisplay() {
+        try {
+            const versionElement = document.getElementById('app-version-display');
+            if (!versionElement) {
+                console.warn('Version display element not found');
+                return;
+            }
+
+            // Get version info with environment
+            const versionInfo = await RatchouUtils.version.getVersionWithEnvironment();
+
+            // Create version display with badge
+            const badgeClass = `badge bg-${versionInfo.environment.color}`;
+            const versionHTML = `
+                Ratchou v${versionInfo.version}
+                <span class="${badgeClass} ms-2">${versionInfo.environment.name}</span>
+            `;
+
+            versionElement.innerHTML = versionHTML;
+            console.log(`Version display updated to: ${versionInfo.fullVersion}`);
+
+        } catch (error) {
+            console.error('Error updating version display:', error);
+            // Fallback display
+            const versionElement = document.getElementById('app-version-display');
+            if (versionElement) {
+                versionElement.textContent = 'Ratchou v?.?.?';
+            }
+        }
     }
 
     /**

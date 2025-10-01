@@ -31,40 +31,37 @@ class AccountsModel extends BaseModel {
     }
 
     /**
-     * Set an account as principal. This is the dedicated method for this business rule.
-     * It ensures atomicity by performing all reads and writes in a single transaction.
+     * Set an account as principal. Simplified version using BaseModel methods.
      */
     async setPrincipal(accountId) {
-        const tx = this.db.tx(this.storeName, 'readwrite');
-        const store = tx.objectStore(this.storeName);
         try {
-            const allAccounts = await new Promise((resolve, reject) => {
-                const request = store.getAll();
-                request.onsuccess = () => resolve(request.result);
-                request.onerror = () => reject(request.error);
-            });
+            // 1. Récupérer tous les comptes
+            const accounts = await this.getAll();
 
-            if (allAccounts.length === 0) {
+            if (accounts.length === 0) {
                 return RatchouUtils.error.success('Aucun compte à modifier');
             }
-            
-            const promises = allAccounts.map(async account => {
-                account.is_principal = (account.id === accountId);
-                return await this.db.putWithMeta(this.storeName, account);
-            });
 
-            await Promise.all(promises);
-            
-            await new Promise((resolve, reject) => {
-                tx.oncomplete = resolve;
-                tx.onerror = () => reject(tx.error);
-                tx.onabort = () => reject(tx.error);
-            });
+            // 2. Mettre à jour les flags is_principal
+            for (const account of accounts) {
+                const newPrincipalStatus = (account.id === accountId);
+
+                // Ne modifier que si le statut change (évite les écritures inutiles)
+                if (account.is_principal !== newPrincipalStatus) {
+                    account.is_principal = newPrincipalStatus;
+                    const updateResult = await this.update(account.id, account);
+
+                    if (!updateResult.success) {
+                        return RatchouUtils.error.createResponse(false,
+                            `Erreur lors de la mise à jour du compte ${account.nom_compte}`);
+                    }
+                }
+            }
 
             return RatchouUtils.error.success('Compte principal défini avec succès');
+
         } catch (error) {
             console.error('Error setting principal account:', error);
-            if (tx && tx.readyState !== 'done') tx.abort();
             return RatchouUtils.error.handleIndexedDBError(error, 'définition compte principal');
         }
     }
@@ -79,7 +76,8 @@ class AccountsModel extends BaseModel {
                 throw new Error('Account not found');
             }
 
-            account.balance = RatchouUtils.currency.toCents(newBalance);
+            const currency = account.currency || 'EUR';
+            account.balance = RatchouUtils.currency.toStorageUnit(newBalance, currency);
             return await this.update(accountId, { balance: account.balance });
         } catch (error) {
             console.error('Error updating balance:', error);
@@ -127,11 +125,34 @@ class AccountsModel extends BaseModel {
         if (typeof data.nom_compte !== 'string' || data.nom_compte.trim() === '') {
             throw new Error('Le nom du compte est requis');
         }
+        // Set defaults
         if (data.balance === undefined) data.balance = 0;
+        if (data.currency === undefined) data.currency = 'EUR';
+
+        // Convert balance to storage unit if it's a decimal number
         if (typeof data.balance === 'number' && data.balance !== Math.floor(data.balance)) {
-            data.balance = RatchouUtils.currency.toCents(data.balance);
+            data.balance = RatchouUtils.currency.toStorageUnit(data.balance, data.currency);
         }
-        if (data.is_principal === undefined) data.is_principal = false;
+        if (data.is_principal === undefined) data.is_principal = 0;
+        // Convert boolean to number for IndexedDB index reliability
+        if (typeof data.is_principal === 'boolean') {
+            data.is_principal = data.is_principal ? 1 : 0;
+        }
+        if (data.auto_copy_to_principal === undefined) data.auto_copy_to_principal = 0;
+        // Convert boolean to number for IndexedDB index reliability
+        if (typeof data.auto_copy_to_principal === 'boolean') {
+            data.auto_copy_to_principal = data.auto_copy_to_principal ? 1 : 0;
+        }
+        // Validate currency
+        if (data.currency === undefined) data.currency = 'EUR';
+        if (!['EUR', 'USD', 'BTC'].includes(data.currency)) {
+            throw new Error('Devise invalide. Valeurs autorisées : EUR, USD, BTC');
+        }
+        // Validate encrypted remark (optional)
+        if (data.remarque_encrypted === undefined) data.remarque_encrypted = null;
+        if (data.remarque_encrypted !== null && typeof data.remarque_encrypted !== 'string') {
+            throw new Error('La remarque chiffrée doit être une chaîne de caractères');
+        }
     }
 
     validateUpdate(data) {
@@ -141,9 +162,27 @@ class AccountsModel extends BaseModel {
         }
         if (data.balance !== undefined) {
             if (typeof data.balance !== 'number') throw new Error('Le solde doit être un nombre');
+            // Convert balance to storage unit if it's a decimal number
+            // Note: currency should be provided along with balance for proper conversion
             if (data.balance !== Math.floor(data.balance)) {
-                data.balance = RatchouUtils.currency.toCents(data.balance);
+                const currency = data.currency || 'EUR'; // fallback to EUR if not provided
+                data.balance = RatchouUtils.currency.toStorageUnit(data.balance, currency);
             }
+        }
+        // Convert boolean to number for IndexedDB index reliability
+        if (data.is_principal !== undefined && typeof data.is_principal === 'boolean') {
+            data.is_principal = data.is_principal ? 1 : 0;
+        }
+        if (data.auto_copy_to_principal !== undefined && typeof data.auto_copy_to_principal === 'boolean') {
+            data.auto_copy_to_principal = data.auto_copy_to_principal ? 1 : 0;
+        }
+        // Validate currency if provided
+        if (data.currency !== undefined && !['EUR', 'USD', 'BTC'].includes(data.currency)) {
+            throw new Error('Devise invalide. Valeurs autorisées : EUR, USD, BTC');
+        }
+        // Validate encrypted remark if provided
+        if (data.remarque_encrypted !== undefined && data.remarque_encrypted !== null && typeof data.remarque_encrypted !== 'string') {
+            throw new Error('La remarque chiffrée doit être une chaîne de caractères');
         }
     }
 
@@ -168,13 +207,6 @@ class AccountsModel extends BaseModel {
         }
     }
 
-    /**
-     * Import from SQLite data
-     */
-    async importFromSQLite(sqliteAccounts) {
-        const transformedAccounts = sqliteAccounts.map(RatchouUtils.transform.account);
-        return await this.bulkImport(transformedAccounts);
-    }
 }
 
 // Export for use in other modules

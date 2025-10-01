@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ratchou - Application PWA</title>
+
+    <!-- PWA Meta Tags -->
+    <meta name="theme-color" content="#667eea">
+    <meta name="description" content="Gestion des dépenses familiales - Ratchou">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="Ratchou">
+    <link rel="apple-touch-icon" href="../assets/icons/icon-192.png">
+    <link rel="manifest" href="../manifest.json">
+
+    <!-- Stylesheets -->
+    <link href="../assets/css/bootstrap.min.css" rel="stylesheet">
+    <link href="../assets/css/bootstrap-icons.min.css" rel="stylesheet">
+    <link href="../assets/css/app.css" rel="stylesheet">
+
+    <!-- Prevent dark mode flash -->
+    <style>
+        /* Prevent flash by setting initial colors based on system preference */
+        @media (prefers-color-scheme: dark) {
+            html { background-color: #212529; color: #dee2e6; }
+        }
+    </style>
+    <script>
+        (function() {
+            const theme = localStorage.getItem('ratchou-theme');
+            const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+
+            let resolvedTheme = 'light';
+            if (theme === 'dark' || (theme === 'auto' && prefersDark) || (!theme && prefersDark)) {
+                resolvedTheme = 'dark';
+            }
+
+            document.documentElement.setAttribute('data-bs-theme', resolvedTheme);
+            if (resolvedTheme === 'dark') {
+                document.documentElement.classList.add('dark-theme');
+            }
+        })();
+    </script>
+    <style>
+        /* Minimum CSS - utilise Bootstrap autant que possible */
+        .back-btn {
+            position: absolute;
+            top: 1rem;
+            left: 1rem;
+        }
+
+        .system-info-card {
+            border-left: 4px solid #667eea;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Loading Overlay -->
+    <div id="loadingOverlay" class="position-fixed top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center bg-white bg-opacity-75" style="z-index: 9999; display: none !important;">
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Chargement...</span>
+        </div>
+    </div>
+
+    <!-- Navigation sera injectée par le composant header -->
+
+    <!-- Bouton retour -->
+    <button type="button" class="btn btn-outline-secondary back-btn" onclick="location.replace('parametres.html')">
+        ← Retour
+    </button>
+
+    <div class="container mt-4">
+        <!-- Alert Messages -->
+        <div id="alertContainer"></div>
+
+        <div class="row justify-content-center">
+            <div class="col-lg-8">
+
+                <!-- Zone de notification PWA principale -->
+                <div id="pwaNotification" class="alert d-none mb-4" role="status">
+                    <span id="pwaNotificationText">Message de notification</span>
+                </div>
+
+                <!-- Zone d'installation -->
+                <div class="card mb-4" id="installCard">
+                    <div class="card-header bg-success text-white">
+                        <h5 class="mb-0">📥 Installation PWA</h5>
+                    </div>
+                    <div class="card-body" id="installContent">
+                        <!-- Le contenu sera injecté par JavaScript selon la plateforme -->
+                    </div>
+                </div>
+                
+
+                <!-- Informations système -->
+                <div class="card mb-4 system-info-card">
+                    <div class="card-header">
+                        <h5 class="mb-0">🔧 Informations système</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <p><strong>Version App :</strong> <span id="appVersion">-</span></p>
+                                <p><strong>Navigateur :</strong> <span id="browserInfo">-</span></p>
+                                <p><strong>Plateforme :</strong> <span id="platformDetails">-</span></p>
+                                <p><strong>Service Worker :</strong> <span id="swStatus">-</span></p>
+                            </div>
+                            <div class="col-md-6">
+                                <p><strong>Cache actif :</strong> <span id="cacheStatus">-</span></p>
+                                <p><strong>Stockage utilisé :</strong> <span id="storageInfo">-</span></p>
+                                <p><strong>Dernière MAJ :</strong> <span id="lastUpdate">-</span></p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Guide iOS spécifique (caché par défaut) -->
+                <div class="card mb-4 d-none" id="iosGuide">
+                    <div class="card-header bg-info text-white">
+                        <h5 class="mb-0">🍎 Guide d'installation iOS/Safari</h5>
+                    </div>
+                    <div class="card-body">
+                        <p class="alert alert-info">
+                            <strong>📱 Important :</strong> Sur iOS, vous devez utiliser Safari pour installer l'application.
+                        </p>
+
+                        <div class="bg-body-secondary rounded p-3 my-2">
+                            <h6><strong>Étape 1</strong></h6>
+                            <p>Ouvrez cette page dans <strong>Safari</strong> (pas Chrome ou autre navigateur)</p>
+                        </div>
+
+                        <div class="bg-body-secondary rounded p-3 my-2">
+                            <h6><strong>Étape 2</strong></h6>
+                            <p>Appuyez sur le bouton <strong>"Partager"</strong> <i class="bi bi-share"></i> en bas de l'écran</p>
+                        </div>
+
+                        <div class="bg-body-secondary rounded p-3 my-2">
+                            <h6><strong>Étape 3</strong></h6>
+                            <p>Sélectionnez <strong>"Sur l'écran d'accueil"</strong> <i class="bi bi-plus-square"></i> dans le menu</p>
+                        </div>
+
+                        <div class="bg-body-secondary rounded p-3 my-2">
+                            <h6><strong>Étape 4</strong></h6>
+                            <p>Confirmez le nom "Ratchou" et appuyez sur <strong>"Ajouter"</strong></p>
+                        </div>
+
+                        <div class="alert alert-success mt-3">
+                            <strong>✅ C'est terminé !</strong> Ratchou apparaîtra sur votre écran d'accueil comme une vraie application.
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Avantages PWA -->
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5 class="mb-0">⭐ Avantages de l'installation PWA</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <ul class="list-unstyled">
+                                    <li class="mb-2">📱 <strong>Accès rapide</strong> depuis l'écran d'accueil</li>
+                                    <li class="mb-2">🚀 <strong>Démarrage plus rapide</strong> que dans le navigateur</li>
+                                    <li class="mb-2">📵 <strong>Fonctionne hors-ligne</strong> une fois les données chargées</li>
+                                </ul>
+                            </div>
+                            <div class="col-md-6">
+                                <ul class="list-unstyled">
+                                    <li class="mb-2">🎨 <strong>Interface native</strong> sans barres de navigation</li>
+                                    <li class="mb-2">🔔 <strong>Notifications</strong> (si activées)</li>
+                                    <li class="mb-2">💾 <strong>Moins d'utilisation</strong> de la batterie</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- Fixed Footer sera injecté -->
+
+    <!-- Scripts -->
+    <script src="../assets/js/bootstrap.bundle.min.js"></script>
+
+    <!-- Component System (requis pour le header) -->
+    <script src="../js/components/component-loader.js"></script>
+
+    <!-- Theme Manager -->
+    <script src="../js/core/theme-manager.js"></script>
+
+    <!-- Core Ratchou App (requis pour getVersion) -->
+    <script src="../js/core/private-mode-detector.js"></script>
+    <script src="../js/core/utils.js"></script>
+    <script src="../js/core/indexeddb-wrapper.js"></script>
+    <script src="../js/core/ratchou-app.js"></script>
+
+    <script src="../js/pwa/install.js"></script>
+    <script src="../js/pwa/persistence.js"></script>
+    <script src="../js/pages/pwa.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', async function() {
+            // Load header via ComponentLoader comme les autres pages de gestion
+            await ComponentLoader.loadHeader({
+                title: '📱 Application PWA',
+                showAccountInfo: false,
+                logoLink: '../dashboard.html'
+            });
+
+            // Initialize RatchouApp for version info
+            try {
+                window.ratchouApp = new RatchouApp();
+                console.log('[PWA Debug] RatchouApp initialized for version info');
+            } catch (error) {
+                console.warn('[PWA Debug] RatchouApp initialization failed:', error);
+            }
+
+            // Initialize storage persistence for PWA page
+            if (window.StoragePersistence) {
+                window.storagePersistence = new StoragePersistence();
+                console.log('[PWA Debug] StoragePersistence initialized');
+            }
+
+            // Attendre que PWAInstaller soit initialisé avant PWAPage
+            let retryCount = 0;
+            const maxRetries = 10; // 1 seconde max d'attente
+
+            const initPWAPage = () => {
+                if (typeof PWAPage !== 'undefined') {
+                    console.log('[PWA Debug] Initializing PWAPage, pwaInstaller available:', !!window.pwaInstaller);
+                    window.pwaPageInstance = new PWAPage();
+                } else if (retryCount < maxRetries) {
+                    retryCount++;
+                    setTimeout(initPWAPage, 100);
+                } else {
+                    console.warn('[PWA Debug] PWAPage not available after retries');
+                }
+            };
+
+            // Délai initial pour laisser PWAInstaller s'initialiser
+            setTimeout(initPWAPage, 200);
+
+            // Load footer après initialisation PWA
+            setTimeout(async () => {
+                try {
+                    await ComponentLoader.loadFixedFooter();
+                } catch (error) {
+                    console.warn('Footer loading failed:', error);
+                }
+            }, 500);
+        });
+    </script>
+</body>
+</html>

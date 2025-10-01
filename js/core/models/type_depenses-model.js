@@ -42,7 +42,13 @@ class ExpenseTypesModel extends BaseModel {
         super.validateCreate(data);
         RatchouUtils.validate.required(data.libelle, 'libelle');
         data.libelle = data.libelle.trim();
-        if (data.is_default === undefined) data.is_default = false;
+        // is_default defaults to 0 (false)
+        if (data.is_default === undefined) data.is_default = 0;
+
+        // Convert boolean to number for IndexedDB index reliability
+        if (typeof data.is_default === 'boolean') {
+            data.is_default = data.is_default ? 1 : 0;
+        }
     }
 
     validateUpdate(data) {
@@ -52,6 +58,11 @@ class ExpenseTypesModel extends BaseModel {
                 throw new Error('Le libellé ne peut pas être vide');
             }
             data.libelle = data.libelle.trim();
+        }
+
+        // Convert boolean to number for IndexedDB index reliability
+        if (data.is_default !== undefined && typeof data.is_default === 'boolean') {
+            data.is_default = data.is_default ? 1 : 0;
         }
     }
 
@@ -125,19 +136,15 @@ class ExpenseTypesModel extends BaseModel {
         }
     }
 
-    async importFromSQLite(sqliteTypes) {
-        const transformed = sqliteTypes.map(RatchouUtils.transform.expenseType);
-        return await this.bulkImport(transformed);
-    }
 
     async createDefaults() {
         const defaults = [
-            { libelle: 'Espèces', is_default: false },
-            { libelle: 'Carte bancaire', is_default: true },
-            { libelle: 'Virement', is_default: false },
-            { libelle: 'Chèque', is_default: false },
-            { libelle: 'Prélèvement automatique', is_default: false },
-            { libelle: 'Autre', is_default: false }
+            { libelle: 'Espèces', is_default: 0 },
+            { libelle: 'Carte bancaire', is_default: 1 },
+            { libelle: 'Virement', is_default: 0 },
+            { libelle: 'Chèque', is_default: 0 },
+            { libelle: 'Prélèvement automatique', is_default: 0 },
+            { libelle: 'Autre', is_default: 0 }
         ];
 
         try {

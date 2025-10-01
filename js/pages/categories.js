@@ -233,7 +233,6 @@ class CategoriesController {
                         <div class="d-flex justify-content-between align-items-center">
                             <div>
                                 <strong>${this.escapeHtml(category.libelle)}</strong>
-                                ${category.is_mandatory ? '<span class="badge bg-warning ms-2">Obligatoire</span>' : ''}
                                 ${this.currentSortMode === 'usage' && (category.usage_count || 0) > 0 ? `<small class="text-muted ms-2">(${category.usage_count || 0})</small>` : ''}
                             </div>
                         </div>

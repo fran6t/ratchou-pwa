@@ -42,7 +42,7 @@ export async function exportDataAsZip(onProgress = null) {
         
         updateProgress(10, 'Collecte des données...');
         
-        // Get export data from app
+        // Get export data from app (all tables)
         const exportData = await window.ratchouApp.exportToJSON();
         
         updateProgress(30, 'Création de l\'archive ZIP...');
@@ -50,33 +50,33 @@ export async function exportDataAsZip(onProgress = null) {
         // Create ZIP archive
         const zip = new JSZip();
         
-        // Add the JSON file to the ZIP with a descriptive name
-        const jsonFileName = 'ratchou-export.json';
-        zip.file(jsonFileName, JSON.stringify(exportData, null, 2));
-        
-        // Add a readme file for user guidance
-        const readmeContent = `# Export Ratchou
-        
-Date d'export : ${new Date().toLocaleString('fr-FR')}
-Application : Ratchou - Gestion de Dépenses
-Format : JSON compressé
+        // Table name mapping for consistency with documentation
+        const tableNameMapping = {
+            'utilisateur': 'UTILISATEUR',
+            'comptes': 'COMPTES',
+            'categories': 'CATEGORIES',
+            'beneficiaires': 'BENEFICIAIRES',
+            'type_depenses': 'TYPE_DEPENSES',
+            'mouvements': 'MOUVEMENTS',
+            'recurrents': 'DEPENSES_FIXES'
+        };
 
-## Contenu
-- ${jsonFileName} : Données complètes de l'application
+        // Create metadata file with proper table names
+        const metadata = {
+            exportDate: new Date().toISOString(),
+            appVersion: window.ratchouApp.getVersion(),
+            dbVersion: window.ratchouApp.db.version,
+            tables: Object.values(tableNameMapping),
+            schema: window.ratchouApp.db.getSchema()
+        };
+        zip.file('metadata.json', JSON.stringify(metadata, null, 2));
 
-## Utilisation
-Pour restaurer ces données :
-1. Ouvrir Ratchou sur le nouvel appareil
-2. Menu > Paramètres > Importer des données
-3. Sélectionner ce fichier ZIP
-
-## Support
-Cette sauvegarde contient toutes vos données :
-comptes, catégories, bénéficiaires, types de dépenses, 
-transactions et dépenses récurrentes.
-`;
-        
-        zip.file('README.txt', readmeContent);
+        // Add each table as a separate JSON file
+        for (const tableName in exportData.data) {
+            const standardTableName = tableNameMapping[tableName] || tableName.toUpperCase();
+            const fileName = `ratchou-export-${standardTableName.toLowerCase()}.json`;
+            zip.file(fileName, JSON.stringify(exportData.data[tableName], null, 2));
+        }
         
         updateProgress(60, 'Compression des données...');
         
@@ -94,22 +94,22 @@ transactions et dépenses récurrentes.
         });
         
         updateProgress(95, 'Préparation du téléchargement...');
-        
+
         // Create download link
         const url = URL.createObjectURL(zipBlob);
         const a = document.createElement('a');
         a.href = url;
         const fileName = generateExportFilename().replace('.json', '.zip');
         a.download = fileName;
-        
+
         // Trigger download
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
-        
+
         updateProgress(100, 'Export terminé !');
-        
+
         // Record backup in metadata
         if (window.backupReminder) {
             window.backupReminder.recordExport();
@@ -132,8 +132,8 @@ transactions et dépenses récurrentes.
                 console.error('Erreur lors de l\'enregistrement manuel des métadonnées:', fallbackError);
             }
         }
-        
-        return { success: true, fileName: fileName };
+
+        return { success: true, fileName: fileName, blob: zipBlob };
         
     } catch (error) {
         console.error('Export ZIP error:', error);
@@ -142,81 +142,15 @@ transactions et dépenses récurrentes.
 }
 
 /**
- * Export application data with format selection
- * @param {string} format - 'json' or 'zip'
+ * Export application data as ZIP (simplified - only ZIP format supported)
  * @param {Function} onProgress - Progress callback function
  * @returns {Object} Result object with success status and fileName
  */
 export async function exportDataWithFormat(format = 'zip', onProgress = null) {
-    if (format === 'zip') {
-        return await exportDataAsZip(onProgress);
-    } else {
-        return await exportData(onProgress);
-    }
+    // Only ZIP format is supported now
+    return await exportDataAsZip(onProgress);
 }
 
-/**
- * Export application data to JSON file
- * @param {Function} onProgress - Progress callback function (optional)
- */
-export async function exportData(onProgress = null) {
-    try {
-        // Check if ratchouApp is available
-        if (!window.ratchouApp || typeof window.ratchouApp.exportToJSON !== 'function') {
-            throw new Error('Application non initialisée. Veuillez recharger la page.');
-        }
-        
-        // Get export data from app
-        const exportData = await window.ratchouApp.exportToJSON();
-        
-        // Create download blob
-        const blob = new Blob([JSON.stringify(exportData, null, 2)], {
-            type: 'application/json'
-        });
-        
-        // Create download link
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        const fileName = generateExportFilename();
-        a.download = fileName;
-        
-        // Trigger download
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-        
-        // Record backup in metadata
-        if (window.backupReminder) {
-            window.backupReminder.recordExport();
-            console.log('✅ Export enregistré dans les métadonnées de sauvegarde');
-        } else {
-            console.warn('⚠️ BackupReminder non disponible - tentative de création...');
-            // Fallback: créer manuellement les métadonnées si le composant n'est pas disponible
-            try {
-                const metadata = JSON.parse(localStorage.getItem('ratchou_backup_metadata') || '{}');
-                const now = Date.now();
-                const updated = {
-                    ...metadata,
-                    lastExportDate: now,
-                    exportCount: (metadata.exportCount || 0) + 1,
-                    reminderSnoozedUntil: null
-                };
-                localStorage.setItem('ratchou_backup_metadata', JSON.stringify(updated));
-                console.log('✅ Métadonnées de sauvegarde enregistrées manuellement');
-            } catch (fallbackError) {
-                console.error('Erreur lors de l\'enregistrement manuel des métadonnées:', fallbackError);
-            }
-        }
-        
-        return { success: true, fileName: fileName };
-        
-    } catch (error) {
-        console.error('Export error:', error);
-        return { success: false, message: error.message };
-    }
-}
 
 /**
  * Import data from ZIP file
@@ -239,51 +173,128 @@ export async function importDataFromZip(file, onProgress = null, deviceId, acces
 
         updateProgress(5, 'Lecture du fichier ZIP...');
         
-        // Read ZIP file
+        // Read and load ZIP file
         const zipContent = await readFileAsArrayBuffer(file);
         updateProgress(15, 'Décompression de l\'archive...');
-        
-        // Load and parse ZIP
         const zip = new JSZip();
         await zip.loadAsync(zipContent);
         
-        updateProgress(25, 'Recherche du fichier de données...');
-        
-        // Look for the JSON file in the ZIP
-        const jsonFile = zip.file('ratchou-export.json');
-        if (!jsonFile) {
-            throw new Error('Fichier de données non trouvé dans l\'archive ZIP (recherche: ratchou-export.json)');
+        // 1. --- VALIDATION DES METADONNEES ---
+        updateProgress(25, 'Validation des métadonnées...');
+        const metadataFile = zip.file('metadata.json');
+        if (!metadataFile) {
+            throw new Error('Fichier metadata.json manquant dans l\'archive. Ce n\'est pas une sauvegarde valide.');
         }
-        
-        updateProgress(35, 'Extraction des données...');
-        
-        // Extract JSON content
-        const jsonContent = await jsonFile.async('text');
-        
-        updateProgress(45, 'Analyse des données...');
-        
-        // Parse JSON
-        let jsonData;
-        try {
-            jsonData = JSON.parse(jsonContent);
-        } catch (parseError) {
-            throw new Error('Fichier JSON invalide dans l\'archive ZIP');
+        const metadataContent = await metadataFile.async('text');
+        const metadata = JSON.parse(metadataContent);
+
+        if (!metadata.schema || !metadata.tables || !metadata.dbVersion) {
+            throw new Error('Le fichier metadata.json est incomplet ou corrompu.');
         }
+
+        // 2. --- VALIDATION DES DONNEES (PRE-CHECK) ---
+        updateProgress(35, 'Vérification des données (pré-import)...');
+        let allData = {};
+        for (const tableName of metadata.tables) {
+            const jsonFile = zip.file(`ratchou-export-${tableName.toLowerCase()}.json`);
+            if (!jsonFile) {
+                throw new Error(`Fichier de données manquant pour la table : ${tableName}`);
+            }
+            const tableContent = await jsonFile.async('text');
+            const tableData = JSON.parse(tableContent);
+            
+            // Validate each record in the table against the schema
+            const schema = metadata.schema[tableName];
+            if (!schema) {
+                throw new Error(`Schéma manquant pour la table ${tableName} dans metadata.json.`);
+            }
+
+            // Extract rows from the table data structure {count: X, rows: [...]}
+            const records = tableData.rows || tableData;
+
+            for (let i = 0; i < records.length; i++) {
+                const record = records[i];
+                const recordId = record.id || `(enregistrement ${i + 1})`;
+
+                // Validation assouplie : on valide seulement les champs présents
+                // Les champs manquants peuvent être auto-générés par l'application
+                for (const fieldName in record) {
+                    if (schema.fields && schema.fields[fieldName]) {
+                        const fieldSchema = schema.fields[fieldName];
+                        if (record[fieldName] !== undefined && typeof record[fieldName] !== fieldSchema.type) {
+                            console.warn(`Type mismatch for ${fieldName} in ${tableName}: expected ${fieldSchema.type}, got ${typeof record[fieldName]}`);
+                            // Ne pas échouer sur les types, juste avertir
+                        }
+                    }
+                }
+
+                // Validation minimale : vérifier seulement que les clés primaires sont présentes
+                if (tableName === 'UTILISATEUR' && !record.code_acces) {
+                    throw new Error(`Erreur dans ${tableName}.json : Le champ obligatoire 'code_acces' est manquant pour l'enregistrement ${recordId}.`);
+                }
+                if ((tableName === 'COMPTES' || tableName === 'CATEGORIES' || tableName === 'BENEFICIAIRES' ||
+                     tableName === 'TYPE_DEPENSES' || tableName === 'MOUVEMENTS' || tableName === 'DEPENSES_FIXES')
+                    && !record.id) {
+                    throw new Error(`Erreur dans ${tableName}.json : Le champ obligatoire 'id' est manquant pour l'enregistrement ${recordId}.`);
+                }
+            }
+            allData[tableName] = tableData;
+        }
+
+        // 3. --- CONFIRMATION UTILISATEUR ---
+        updateProgress(60, 'En attente de confirmation...');
+        const confirmation = window.confirm(
+            "Validation réussie !\n\n" +
+            "ATTENTION : L'importation va supprimer TOUTES les données actuelles et les remplacer par celles de cette sauvegarde.\n\n" +
+            "Êtes-vous sûr de vouloir continuer ?"
+        );
+
+        if (!confirmation) {
+            updateProgress(0, 'Importation annulée par l\'utilisateur.');
+            return { success: false, message: 'Importation annulée.' };
+        }
+
+        // 4. --- IMPORTATION REELLE ---
+        updateProgress(70, 'Phase 1: Réinitialisation de la structure...');
+        await window.ratchouApp.initializeStructure();
         
-        updateProgress(55, 'Suppression des données existantes...');
-        
-        // Clear existing data
-        await window.ratchouApp.clearAllData();
-        updateProgress(75, 'Import des données...');
-        
-        // Import data
-        const result = await window.ratchouApp.importFromJSON(jsonData, deviceId, accessCode);
-        updateProgress(95, 'Finalisation...');
+        updateProgress(80, 'Phase 2: Import des données...');
+
+        // Reconstitute the format expected by importFromJSON: {data: {...}}
+        // Also map table names back to the internal format
+        const tableNameMapping = {
+            'UTILISATEUR': 'utilisateur',
+            'COMPTES': 'comptes',
+            'CATEGORIES': 'categories',
+            'BENEFICIAIRES': 'beneficiaires',
+            'TYPE_DEPENSES': 'type_depenses',
+            'MOUVEMENTS': 'mouvements',
+            'DEPENSES_FIXES': 'recurrents'
+        };
+
+        const formattedData = {
+            data: {}
+        };
+
+        for (const tableName of metadata.tables) {
+            const internalName = tableNameMapping[tableName] || tableName.toLowerCase();
+            formattedData.data[internalName] = allData[tableName];
+        }
+
+        const result = await window.ratchouApp.importFromJSON(formattedData, deviceId, accessCode);
         
         if (!result.success) {
             throw new Error(result.message || 'Erreur lors de l\'import');
         }
-        
+
+        updateProgress(95, 'Connexion automatique...');
+        const loginResult = await window.ratchouApp.login(accessCode, deviceId);
+        if (!loginResult.success) {
+            console.warn('Auto-login failed after import:', loginResult.message);
+        } else {
+            console.log('✅ Automatic login successful after import');
+        }
+
         updateProgress(100, 'Import terminé');
         return { success: true, message: 'Import réussi depuis le fichier ZIP !' };
         
@@ -357,20 +368,31 @@ async function importDataFromJSON(file, onProgress = null, deviceId, accessCode)
             throw new Error('Fichier JSON invalide');
         }
         
-        updateProgress(50, 'Suppression des données existantes...');
-        
-        // Clear existing data
-        await window.ratchouApp.clearAllData();
-        updateProgress(70, 'Import des données...');
+        updateProgress(30, 'Phase 1: Réinitialisation de la structure...');
+
+        // Phase 1: Recreate database structure
+        await window.ratchouApp.initializeStructure();
+        updateProgress(70, 'Phase 2: Import des données...');
         
         // Import data
         const result = await window.ratchouApp.importFromJSON(jsonData, deviceId, accessCode);
-        updateProgress(90, 'Finalisation...');
-        
+        updateProgress(85, 'Finalisation...');
+
         if (!result.success) {
             throw new Error(result.message || 'Erreur lors de l\'import');
         }
-        
+
+        updateProgress(95, 'Connexion automatique...');
+
+        // Automatically login with the provided credentials
+        const loginResult = await window.ratchouApp.login(accessCode, deviceId);
+        if (!loginResult.success) {
+            console.warn('Auto-login failed after import:', loginResult.message);
+            // Don't fail the import, just warn
+        } else {
+            console.log('✅ Automatic login successful after import');
+        }
+
         updateProgress(100, 'Import terminé');
         return { success: true, message: 'Import réussi !' };
         
@@ -512,25 +534,61 @@ export async function uninstallApp(onProgress = null) {
         }
         
         updateProgress(90, 'Nettoyage des caches...');
-        
+
         // Clear any browser caches if possible
+        let cachesCleared = 0;
         try {
             if ('caches' in window) {
                 const cacheNames = await caches.keys();
-                await Promise.all(
-                    cacheNames
-                        .filter(name => name.includes('ratchou') || name.includes('Ratchou'))
-                        .map(name => caches.delete(name))
-                );
+                const ratchouCaches = cacheNames.filter(name => name.includes('ratchou') || name.includes('Ratchou'));
+                await Promise.all(ratchouCaches.map(name => caches.delete(name)));
+                cachesCleared = ratchouCaches.length;
+                console.log(`[Uninstall] Cleared ${cachesCleared} cache(s):`, ratchouCaches);
             }
         } catch (cacheError) {
             console.warn('Error clearing caches:', cacheError);
             // Continue even if cache clearing fails
         }
-        
+
+        updateProgress(95, 'Désinscription du Service Worker...');
+
+        // Unregister all service workers
+        let swUnregistered = 0;
+        try {
+            if ('serviceWorker' in navigator) {
+                const registrations = await navigator.serviceWorker.getRegistrations();
+                await Promise.all(registrations.map(async (registration) => {
+                    const unregistered = await registration.unregister();
+                    if (unregistered) {
+                        swUnregistered++;
+                        console.log('[Uninstall] Service Worker unregistered:', registration.scope);
+                    }
+                }));
+            }
+        } catch (swError) {
+            console.warn('Error unregistering service workers:', swError);
+            // Continue even if SW unregistration fails
+        }
+
         updateProgress(100, 'Désinstallation terminée');
-        
-        return { success: true, message: 'Application désinstallée avec succès' };
+
+        console.log(`[Uninstall] Complete cleanup summary:
+- localStorage keys removed: ${keysToRemove.length}
+- sessionStorage keys removed: ${sessionKeysToRemove.length}
+- IndexedDB deleted: ratchou
+- Caches cleared: ${cachesCleared}
+- Service Workers unregistered: ${swUnregistered}`);
+
+        return {
+            success: true,
+            message: 'Application désinstallée avec succès. Pour une désinstallation complète, vous pouvez également révoquer les permissions dans les paramètres de votre navigateur.',
+            details: {
+                localStorageCleared: keysToRemove.length,
+                sessionStorageCleared: sessionKeysToRemove.length,
+                cachesCleared,
+                serviceWorkersUnregistered: swUnregistered
+            }
+        };
         
     } catch (error) {
         console.error('Uninstall error:', error);

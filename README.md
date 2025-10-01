@@ -1,5 +1,7 @@
 # Ratchou
 
+**Version 1.0.1**
+
 # Gestion Dépenses Familiales — PWA/IndexedDB (100% Offline)
 
 Application minimaliste pour suivre les comptes et les mouvements familiaux, pensée pour être **très simple**, **100% offline** et **installable** comme une PWA. Frontend en **HTML5/CSS3/JavaScript ES6+** vanilla, base de données **IndexedDB** locale.
@@ -18,6 +20,8 @@ Application minimaliste pour suivre les comptes et les mouvements familiaux, pen
 - **Intégrité applicative** : Contraintes métier gérées par le code JavaScript
 - **Authentication** : Code d'accès à 4 chiffres avec système de guards centralisé
 - **Export/Import** : Sauvegarde et restauration complète en JSON
+- **Multi-devises** : Support EUR (centimes) et BTC (satoshis) avec conversion automatique
+- **Thème adaptatif** : Mode dark/light/auto avec détection système
 
 ---
 
@@ -41,7 +45,9 @@ ratchou/
 │   │   ├── ratchou-app.js        # Orchestrateur principal
 │   │   ├── auth.js               # Gestion authentification + guards
 │   │   ├── indexeddb-wrapper.js  # Abstraction IndexedDB
-│   │   ├── utils.js              # Utilitaires
+│   │   ├── utils.js              # Utilitaires (+ conversion devises)
+│   │   ├── theme-manager.js      # Gestion thème dark/light/auto
+│   │   ├── crypto-utils.js       # Utilitaires cryptographiques
 │   │   └── models/               # Modèles de données
 │   │       ├── base-model.js     # Modèle de base (CRUD)
 │   │       ├── comptes-model.js
@@ -86,10 +92,11 @@ La base utilise **7 stores** (équivalent tables) avec **indexes** pour performa
 - **Clé** : `code_acces` (string)
 - **Usage** : Code d'accès à 4 chiffres (défaut: `1234`)
 
-### Store `accounts` 
+### Store `accounts`
 - **Clé** : `id` (UUID)
-- **Champs** : `nom_compte`, `balance`, `is_principal`, `date_maj`
+- **Champs** : `nom_compte`, `balance`, `currency`, `is_principal`, `date_maj`
 - **Index** : `name`, `principal`, `date_maj`
+- **Devises** : EUR (balance en centimes), BTC (balance en satoshis)
 - **Équivaut** : TABLE COMPTES (version PHP)
 
 ### Store `categories`
@@ -128,6 +135,16 @@ La base utilise **7 stores** (équivalent tables) avec **indexes** pour performa
 
 L'application initialise automatiquement avec ces données de référence :
 
+### Comptes (6 comptes par défaut)
+1. **Compte Principal** (EUR, principal, 0€)
+2. **Budget Sem. 1** (EUR, 200€)
+3. **Budget Sem. 2** (EUR, 200€)
+4. **Budget Sem. 3** (EUR, 200€)
+5. **Budget Sem. 4** (EUR, 200€)
+6. **Compte BTC** (BTC, 0 satoshi)
+
+**Note :** Ordre d'affichage = compte principal en premier, puis par ordre alphabétique
+
 ### Catégories (15 suggestions)
 1. Alimentation / Courses  
 2. Logement (Loyer / Crédit)  
@@ -158,7 +175,53 @@ Carrefour, Leclerc, Intermarché, Lidl, Amazon, SNCF, TotalEnergies, EDF, Engie,
 
 ---
 
-## 5) Interface utilisateur
+## 5) Gestion multi-devises
+
+### Devises supportées
+- **EUR (Euro)** - Devise par défaut, stockage en **centimes**
+- **BTC (Bitcoin)** - Crypto-monnaie, stockage en **satoshis**
+
+### Conversion et stockage
+Les montants sont stockés dans IndexedDB selon l'unité minimale :
+- **EUR :** 1€ = 100 centimes
+- **BTC :** 1 BTC = 100 000 000 satoshis
+
+### Utilitaires de conversion (`RatchouUtils.currency`)
+
+```javascript
+// Conversion vers unité de stockage
+RatchouUtils.currency.toStorageUnit(1.5, 'EUR')    // → 150 centimes
+RatchouUtils.currency.toStorageUnit(0.00000001, 'BTC')  // → 1 satoshi
+
+// Conversion depuis unité de stockage
+RatchouUtils.currency.fromStorageUnit(150, 'EUR')  // → 1.50 €
+RatchouUtils.currency.fromStorageUnit(100000000, 'BTC')  // → 1.00000000 BTC
+
+// Formatage avec symbole
+RatchouUtils.currency.formatWithCurrency(150, 'EUR')  // → "1,50 €"
+RatchouUtils.currency.formatWithCurrency(100000000, 'BTC')  // → "1,00000000 ₿"
+```
+
+### Précision d'affichage
+- **EUR :** 2 décimales (ex: 1,50 €)
+- **BTC :** 8 décimales (ex: 0,00000001 ₿)
+
+### ⚠️ Migration importante
+**Méthodes legacy (EUR uniquement) à éviter :**
+```javascript
+// ❌ Deprecated
+RatchouUtils.currency.toCents(amount)
+RatchouUtils.currency.toEuros(cents)
+
+// ✅ Correct (multi-devises)
+const currency = account.currency || 'EUR';
+RatchouUtils.currency.toStorageUnit(amount, currency)
+RatchouUtils.currency.fromStorageUnit(amount, currency)
+```
+
+---
+
+## 6) Interface utilisateur
 
 ### Page de connexion (`index.html`)
 - **Saisie** : Code d'accès 4 chiffres + nom d'appareil (premier démarrage)
@@ -173,18 +236,19 @@ Carrefour, Leclerc, Intermarché, Lidl, Amazon, SNCF, TotalEnergies, EDF, Engie,
 - **Traitement automatique** : Vérification dépenses récurrentes au démarrage
 
 ### Menu hamburger (navigation)
-1. **COMPTES** — Gestion multi-comptes + désignation principal
-2. **MOUVEMENTS** — Recherche, modification, suppression transactions  
+1. **COMPTES** — Gestion multi-comptes + multi-devises + désignation principal
+2. **MOUVEMENTS** — Recherche, modification, suppression transactions
 3. **CATÉGORIES** — CRUD + flag "dépense obligatoire"
 4. **BÉNÉFICIAIRES** — CRUD bénéficiaires
 5. **TYPES DE DÉPENSES** — CRUD types paiement
 6. **DÉPENSES RÉCURRENTES** — CRUD + activation/désactivation
-7. **Export/Import** — Export ZIP/JSON + fonctions de partage intégrées
-8. **Changer code d'accès** — Modal sécurisée
+7. **PARAMÈTRES** — Configuration thème (dark/light/auto)
+8. **Export/Import** — Export ZIP/JSON + fonctions de partage intégrées
+9. **Changer code d'accès** — Modal sécurisée
 
 ---
 
-## 6) API JavaScript (exemples d'usage)
+## 7) API JavaScript (exemples d'usage)
 
 ### Initialisation de l'application
 ```javascript
@@ -222,9 +286,15 @@ const dashboardData = await ratchouApp.getDashboardData();
 
 // Travail avec les modèles
 const categories = await ratchouApp.models.categories.getAll();
+
+// Création transaction avec multi-devises
+const account = await ratchouApp.models.accounts.getById('uuid-compte');
+const currency = account.currency || 'EUR';
+const amountInStorage = RatchouUtils.currency.toStorageUnit(-50.00, currency);
+
 const newTransaction = await ratchouApp.models.transactions.create({
-    amount: -50.00,
-    account_id: 'uuid-compte',
+    amount: amountInStorage,  // -5000 centimes ou satoshis selon devise
+    account_id: account.id,
     category_id: 'uuid-categorie',
     payee_id: 'uuid-beneficiaire',
     expense_type_id: 'uuid-type',
@@ -247,16 +317,32 @@ const importResult = await importData(file, onProgress, deviceId, accessCode);
 
 ### Gestion des comptes
 ```javascript
-// Correction manuelle du solde
-await ratchouApp.models.accounts.updateBalance(accountId, newBalance);
+// Correction manuelle du solde (multi-devises)
+const account = await ratchouApp.models.accounts.getById(accountId);
+const currency = account.currency || 'EUR';
+const newBalanceStorage = RatchouUtils.currency.toStorageUnit(newBalance, currency);
+await ratchouApp.models.accounts.updateBalance(accountId, newBalanceStorage);
 
 // Recalcul automatique
 await ratchouApp.models.accounts.recalculateBalance(accountId);
 ```
 
+### Gestion du thème
+```javascript
+// Configuration du thème
+await ThemeManager.initialize();
+
+// Changer le thème
+ThemeManager.setTheme('dark');   // 'light', 'dark', ou 'auto'
+
+// Obtenir le thème actuel
+const currentTheme = ThemeManager.getCurrentTheme();  // Thème utilisateur
+const effectiveTheme = ThemeManager.getEffectiveTheme();  // Thème appliqué
+```
+
 ---
 
-## 7) Installation et déploiement
+## 8) Installation et déploiement
 
 ### Prérequis
 - **Serveur web** : Apache, Nginx ou serveur de développement
@@ -284,7 +370,7 @@ await ratchouApp.models.accounts.recalculateBalance(accountId);
 
 ---
 
-## 8) Fonctionnalités avancées
+## 9) Fonctionnalités avancées
 
 ### Dépenses récurrentes automatiques
 - **Vérification au démarrage** : Contrôle des échéances dues
@@ -301,12 +387,20 @@ await ratchouApp.models.accounts.recalculateBalance(accountId);
 
 ### Correction de solde
 - **Solde cliquable** : Modal de correction rapide
+- **Multi-devises** : Respect de la devise du compte
 - **Recalcul intelligent** : Intègre nouveaux mouvements post-correction
 - **Historique** : Traçabilité des corrections manuelles
 
+### Thème adaptatif
+- **3 modes** : Light, Dark, Auto (détection système)
+- **Bootstrap natif** : Utilise `data-bs-theme="dark"`
+- **Persistance** : Stockage localStorage
+- **Détection système** : Media query `prefers-color-scheme`
+- **Configuration** : Interface dans Paramètres
+
 ---
 
-## 9) Sécurité & confidentialité
+## 10) Sécurité & confidentialité
 
 ### 🔒 Principes de sécurité
 - **100% local** : Aucune donnée transmise à un serveur
@@ -328,7 +422,7 @@ await ratchouApp.models.accounts.recalculateBalance(accountId);
 
 ---
 
-## 10) Évolution et développement
+## 11) Évolution et développement
 
 ### Architecture modulaire
 - **Modèles** : `js/core/models/` - Logique métier et CRUD
@@ -348,11 +442,18 @@ await ratchouApp.models.accounts.recalculateBalance(accountId);
 - **Synchronisation** : Multi-appareils via serveur optionnel
 - **Analyse** : Graphiques de dépenses et tendances
 - **Catégories avancées** : Sous-catégories et budgets
-- **Multi-devises** : Support devises multiples
+- **Devises supplémentaires** : USD, GBP, etc.
+
+### Bonnes pratiques développement
+1. **Multi-devises obligatoire** : Toujours utiliser `toStorageUnit()` / `fromStorageUnit()` avec paramètre `currency`
+2. **Éviter méthodes legacy** : Ne plus utiliser `toCents()` / `toEuros()`
+3. **Booléens → Numériques** : Utiliser 0/1 pour les champs indexés IndexedDB
+4. **Thème adaptatif** : Utiliser variables CSS Bootstrap (`--bs-*`)
+5. **Guards centralisés** : Authentification via `auth.guardPage()`
 
 ---
 
-## 11) Partage
+## 12) Partage
 
 ### Partage entre appareils
 

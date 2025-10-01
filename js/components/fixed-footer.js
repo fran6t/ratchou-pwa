@@ -47,19 +47,16 @@ export const fixedFooterStyles = `
     /* Footer fixe principal */
     .fixed-footer {
         position: fixed;
-        bottom: 0;
-        left: 0;
-        right: 0;
+        inset: auto 0 0 0;
         height: 60px;
-        background: rgba(255, 255, 255, 0.95);
-        backdrop-filter: blur(20px);
-        -webkit-backdrop-filter: blur(20px);
-        border-top: 1px solid rgba(0, 0, 0, 0.1);
-        box-shadow: 0 -2px 20px rgba(0, 0, 0, 0.1);
+        background: rgba(var(--bs-body-bg-rgb), 0.95);
+        backdrop-filter: blur(1.25rem);
+        border-top: 1px solid var(--bs-border-color);
+        box-shadow: 0 -0.125rem 1.25rem rgba(var(--bs-body-color-rgb), 0.1);
         z-index: 1035;
         transition: transform 0.3s ease, opacity 0.3s ease;
-        
-        /* Support des Safe Areas iOS/Android */
+
+        /* PWA Safe Areas support */
         padding-bottom: env(safe-area-inset-bottom);
         padding-left: env(safe-area-inset-left);
         padding-right: env(safe-area-inset-right);
@@ -82,22 +79,21 @@ export const fixedFooterStyles = `
         justify-content: center;
         min-width: 44px;
         min-height: 44px;
-        padding: 4px 8px;
+        padding: 0.25rem 0.5rem;
         background: none;
         border: none;
-        border-radius: 8px;
-        color: #6c757d;
+        border-radius: 0.5rem;
+        color: var(--bs-secondary-color);
         cursor: pointer;
         transition: all 0.2s ease;
-        position: relative;
         flex: 1;
         max-width: 80px;
     }
     
     .footer-btn:hover,
     .footer-btn:focus {
-        color: #0d6efd;
-        background-color: rgba(13, 110, 253, 0.1);
+        color: var(--bs-primary);
+        background-color: var(--bs-primary-bg-subtle);
         outline: none;
         transform: scale(1.05);
     }
@@ -128,8 +124,8 @@ export const fixedFooterStyles = `
     
     /* État actif pour le bouton courant */
     .footer-btn.active {
-        color: #0d6efd;
-        background-color: rgba(13, 110, 253, 0.15);
+        color: var(--bs-primary);
+        background-color: var(--bs-primary-bg-subtle);
     }
     
     .footer-btn.active .footer-icon {
@@ -190,29 +186,6 @@ export const fixedFooterStyles = `
         }
     }
     
-    /* Mode sombre (si implémenté plus tard) */
-    @media (prefers-color-scheme: dark) {
-        .fixed-footer {
-            background: rgba(33, 37, 41, 0.95);
-            border-top-color: rgba(255, 255, 255, 0.1);
-            box-shadow: 0 -2px 20px rgba(0, 0, 0, 0.3);
-        }
-        
-        .footer-btn {
-            color: #adb5bd;
-        }
-        
-        .footer-btn:hover,
-        .footer-btn:focus {
-            color: #0d6efd;
-            background-color: rgba(13, 110, 253, 0.2);
-        }
-        
-        .footer-btn.active {
-            color: #0d6efd;
-            background-color: rgba(13, 110, 253, 0.3);
-        }
-    }
     
     /* Masquer si l'utilisateur a désactivé le footer */
     body.fixed-footer-disabled .fixed-footer {
@@ -242,7 +215,7 @@ export const fixedFooterStyles = `
         left: 50%;
         width: 0;
         height: 0;
-        background: rgba(13, 110, 253, 0.3);
+        background: var(--bs-primary-bg-subtle);
         border-radius: 50%;
         transform: translate(-50%, -50%);
         pointer-events: none;

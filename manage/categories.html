@@ -18,10 +18,34 @@
     <link href="../assets/css/bootstrap.min.css" rel="stylesheet">
     <link href="../assets/css/bootstrap-icons.min.css" rel="stylesheet">
     <link href="../assets/css/app.css" rel="stylesheet">
+
+    <!-- Prevent dark mode flash -->
+    <style>
+        /* Prevent flash by setting initial colors based on system preference */
+        @media (prefers-color-scheme: dark) {
+            html { background-color: #212529; color: #dee2e6; }
+        }
+    </style>
+    <script>
+        (function() {
+            const theme = localStorage.getItem('ratchou-theme');
+            const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+
+            let resolvedTheme = 'light';
+            if (theme === 'dark' || (theme === 'auto' && prefersDark) || (!theme && prefersDark)) {
+                resolvedTheme = 'dark';
+            }
+
+            document.documentElement.setAttribute('data-bs-theme', resolvedTheme);
+            if (resolvedTheme === 'dark') {
+                document.documentElement.classList.add('dark-theme');
+            }
+        })();
+    </script>
 </head>
-<body class="bg-light">
+<body>
     <!-- Loading Overlay -->
-    <div id="loadingOverlay" class="position-fixed top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center bg-white bg-opacity-75" style="z-index: 9999; display: none !important;">
+    <div id="loadingOverlay" class="position-fixed top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center bg-white bg-opacity-75 d-none" style="z-index: 9999;">
         <div class="spinner-border text-primary" role="status">
             <span class="visually-hidden">Chargement...</span>
         </div>
@@ -139,7 +163,7 @@
                 </div>
                 <div class="modal-body">
                     <p>Êtes-vous sûr de vouloir supprimer cette catégorie ? Cette action est irréversible.</p>
-                    <div id="deleteWarning" class="alert alert-warning" style="display: none;">
+                    <div id="deleteWarning" class="alert alert-warning d-none">
                         <strong>Attention :</strong> Cette catégorie est utilisée dans des transactions. La supprimer supprimera également toutes les transactions associées.
                     </div>
                     <input type="hidden" id="delete_id">
@@ -147,7 +171,7 @@
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary rounded-pill" data-bs-dismiss="modal">Annuler</button>
                     <button type="button" class="btn btn-danger rounded-pill" id="deleteCategoryBtn">
-                        <span class="spinner-border spinner-border-sm me-2" style="display: none;"></span>
+                        <span class="spinner-border spinner-border-sm me-2 d-none"></span>
                         Supprimer
                     </button>
                 </div>
@@ -160,6 +184,7 @@
     <script src="../assets/js/bootstrap.bundle.min.js"></script>
     
     <!-- Core Ratchou Scripts -->
+    <script src="../js/core/private-mode-detector.js"></script>
     <script src="../js/core/utils.js"></script>
     <script src="../js/core/indexeddb-wrapper.js"></script>
     <script src="../js/core/models/base-model.js"></script>
@@ -175,11 +200,13 @@
     <!-- Component System -->
     <script src="../js/components/component-loader.js"></script>
 
+    <!-- Theme Manager -->
+    <script src="../js/core/theme-manager.js"></script>
+
     <!-- Categories Page Script -->
     <script src="../js/pages/categories.js"></script>
     
     <!-- PWA Scripts -->
     <script src="../js/pwa/install.js"></script>
-    <script src="../js/pwa/persistence.js"></script>
 </body>
 </html>
