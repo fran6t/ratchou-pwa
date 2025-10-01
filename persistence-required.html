@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Validation du stockage persistant - Ratchou</title>
+
+    <!-- PWA Meta Tags -->
+    <meta name="theme-color" content="#ffc107">
+    <meta name="description" content="Validation du stockage persistant pour Ratchou">
+    <meta name="robots" content="noindex, nofollow">
+
+    <!-- Stylesheets -->
+    <link href="assets/css/bootstrap.min.css" rel="stylesheet">
+    <link href="assets/css/bootstrap-icons.min.css" rel="stylesheet">
+    <link href="assets/css/app.css" rel="stylesheet">
+
+    <!-- Prevent dark mode flash -->
+    <style>
+        /* Prevent flash by setting initial colors based on system preference */
+        @media (prefers-color-scheme: dark) {
+            html { background-color: #212529; color: #dee2e6; }
+        }
+    </style>
+    <script>
+        (function() {
+            const theme = localStorage.getItem('ratchou-theme');
+            const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+
+            let resolvedTheme = 'light';
+            if (theme === 'dark' || (theme === 'auto' && prefersDark) || (!theme && prefersDark)) {
+                resolvedTheme = 'dark';
+            }
+
+            document.documentElement.setAttribute('data-bs-theme', resolvedTheme);
+            if (resolvedTheme === 'dark') {
+                document.documentElement.classList.add('dark-theme');
+            }
+        })();
+    </script>
+
+    <style>
+        body {
+            background: linear-gradient(135deg, #ffc107 0%, #fd7e14 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        .persistence-container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            max-width: 700px;
+            margin: 2rem auto;
+            overflow: hidden;
+        }
+
+        .persistence-header {
+            background: #ffc107;
+            color: #212529;
+            padding: 2rem;
+            text-align: center;
+            position: relative;
+        }
+
+        .persistence-header::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="20" cy="20" r="2" fill="rgba(255,255,255,0.2)"/><circle cx="80" cy="30" r="1.5" fill="rgba(255,255,255,0.2)"/><circle cx="40" cy="70" r="1" fill="rgba(255,255,255,0.2)"/><circle cx="90" cy="80" r="2.5" fill="rgba(255,255,255,0.2)"/><circle cx="10" cy="60" r="1.2" fill="rgba(255,255,255,0.2)"/></svg>');
+            opacity: 0.1;
+        }
+
+        .persistence-icon {
+            margin-bottom: 1rem;
+            position: relative;
+            z-index: 1;
+        }
+
+        .ratchou-logo {
+            width: 80px;
+            height: 80px;
+            animation: persistenceFloat 3s ease-in-out infinite;
+            filter: drop-shadow(0 4px 8px rgba(0,0,0,0.3));
+        }
+
+        @keyframes persistenceFloat {
+            0%, 100% {
+                transform: translateY(0px);
+            }
+            50% {
+                transform: translateY(-10px);
+            }
+        }
+
+        .persistence-title {
+            font-size: 1.75rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+            position: relative;
+            z-index: 1;
+        }
+
+        .persistence-subtitle {
+            font-size: 1.1rem;
+            opacity: 0.9;
+            position: relative;
+            z-index: 1;
+        }
+
+        .persistence-body {
+            padding: 2.5rem;
+        }
+
+        .explanation-box {
+            background: #e7f3ff;
+            border-left: 4px solid #0d6efd;
+            padding: 1.5rem;
+            margin: 1.5rem 0;
+            border-radius: 0 8px 8px 0;
+        }
+
+        .risk-warning {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin-top: 2rem;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 1rem;
+            margin-top: 2rem;
+            flex-wrap: wrap;
+        }
+
+        .btn-accept {
+            background: linear-gradient(45deg, #28a745, #20c997);
+            border: none;
+            color: white;
+            padding: 12px 30px;
+            border-radius: 25px;
+            font-weight: 600;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(40, 167, 69, 0.3);
+            flex: 1;
+            justify-content: center;
+            min-width: 200px;
+        }
+
+        .btn-accept:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(40, 167, 69, 0.4);
+            color: white;
+            text-decoration: none;
+        }
+
+        .btn-retry {
+            background: linear-gradient(45deg, #0d6efd, #6f42c1);
+            border: none;
+            color: white;
+            padding: 12px 30px;
+            border-radius: 25px;
+            font-weight: 600;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(13, 110, 253, 0.3);
+            flex: 1;
+            justify-content: center;
+            min-width: 200px;
+        }
+
+        .btn-retry:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(13, 110, 253, 0.4);
+            color: white;
+            text-decoration: none;
+        }
+
+        .status-info {
+            background: #f8f9fa;
+            border-radius: 6px;
+            padding: 1rem;
+            margin-top: 1.5rem;
+            font-size: 0.9rem;
+            font-family: 'Courier New', monospace;
+        }
+
+        @media (max-width: 768px) {
+            .persistence-container {
+                margin: 1rem;
+                border-radius: 15px;
+            }
+
+            .persistence-header {
+                padding: 1.5rem;
+            }
+
+            .persistence-body {
+                padding: 1.5rem;
+            }
+
+            .persistence-title {
+                font-size: 1.5rem;
+            }
+
+            .action-buttons {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="persistence-container">
+            <!-- Header -->
+            <div class="persistence-header">
+                <div class="persistence-icon">
+                    <img src="assets/img/Logo_Ratchou.webp" alt="Ratchou" class="ratchou-logo">
+                </div>
+                <h1 class="persistence-title">Stockage persistant requis</h1>
+                <p class="persistence-subtitle">Pour protéger vos données financières</p>
+            </div>
+
+            <!-- Body -->
+            <div class="persistence-body">
+                <div class="explanation-box">
+                    <h5><i class="bi bi-shield-check text-primary me-2"></i>Pourquoi cette validation ?</h5>
+                    <p class="mb-2">
+                        Ratchou a besoin d'un <strong>stockage persistant</strong> pour garantir que vos données
+                        financières ne soient pas supprimées automatiquement par le navigateur.
+                    </p>
+                    <p class="mb-0">
+                        Sans stockage persistant, vos comptes et transactions pourraient être perdus si l'espace de stockage manque.
+                    </p>
+                </div>
+
+                <div class="risk-warning">
+                    <h5><i class="bi bi-exclamation-triangle text-warning me-2"></i>Que se passe-t-il si je continue sans stockage persistant ?</h5>
+                    <ul class="mb-3">
+                        <li>Vos données pourraient être supprimées automatiquement par le navigateur</li>
+                        <li>Cette suppression peut se produire à tout moment, sans préavis</li>
+                        <li>Vous perdriez l'historique de tous vos comptes et transactions</li>
+                    </ul>
+                    <p class="mb-0">
+                        <strong>Recommandation :</strong> Utilisez régulièrement la fonction d'export pour sauvegarder vos données.
+                    </p>
+                </div>
+
+                <!-- Action buttons -->
+                <div class="action-buttons">
+                    <button class="btn-retry" onclick="retryPersistence()">
+                        <i class="bi bi-arrow-clockwise"></i>
+                        Réessayer le stockage persistant
+                    </button>
+                    <button class="btn-accept" onclick="acceptRisksAndContinue()">
+                        <i class="bi bi-check-circle"></i>
+                        J'accepte les risques et continue
+                    </button>
+                </div>
+
+                <!-- Status info -->
+                <div class="status-info" id="persistence-status">
+                    <strong>État :</strong> <span id="status-text">Vérification en cours...</span>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="assets/js/bootstrap.bundle.min.js"></script>
+    <!-- Note: persistence.js non chargé ici car cette page gère la persistance elle-même -->
+
+    <script>
+        // Vérifier l'état de la persistance au chargement
+        async function checkPersistenceStatus() {
+            const statusText = document.getElementById('status-text');
+
+            try {
+                if (!('storage' in navigator) || !('persist' in navigator.storage)) {
+                    statusText.textContent = 'API de persistance non supportée par ce navigateur';
+                    return;
+                }
+
+                const isPersistent = await navigator.storage.persisted();
+                if (isPersistent) {
+                    statusText.innerHTML = '<span class="text-success">✓ Stockage persistant accordé</span>';
+                    // Rediriger automatiquement si persistance accordée
+                    setTimeout(() => {
+                        window.location.replace('index.html');
+                    }, 1000);
+                } else {
+                    statusText.innerHTML = '<span class="text-warning">⚠ Stockage persistant non accordé</span>';
+                }
+            } catch (error) {
+                statusText.innerHTML = '<span class="text-danger">❌ Erreur lors de la vérification</span>';
+                console.error('Erreur vérification persistance:', error);
+            }
+        }
+
+        // Fonction pour réessayer la demande de persistance
+        async function retryPersistence() {
+            const statusText = document.getElementById('status-text');
+            statusText.textContent = 'Demande de persistance en cours...';
+
+            try {
+                const granted = await navigator.storage.persist();
+                if (granted) {
+                    statusText.innerHTML = '<span class="text-success">✓ Stockage persistant accordé!</span>';
+                    setTimeout(() => {
+                        window.location.replace('index.html');
+                    }, 1000);
+                } else {
+                    statusText.innerHTML = '<span class="text-warning">⚠ Persistance refusée par le navigateur</span>';
+                }
+            } catch (error) {
+                statusText.innerHTML = '<span class="text-danger">❌ Erreur lors de la demande</span>';
+                console.error('Erreur demande persistance:', error);
+            }
+        }
+
+        // Fonction pour accepter les risques et continuer
+        function acceptRisksAndContinue() {
+            // Stocker l'acceptation des risques dans localStorage
+            localStorage.setItem('ratchou_risks_accepted', JSON.stringify({
+                accepted: true,
+                timestamp: Date.now(),
+                version: '1.0'
+            }));
+
+            // Rediriger vers l'application
+            window.location.replace('index.html');
+        }
+
+        // Vérifier le statut au chargement
+        document.addEventListener('DOMContentLoaded', checkPersistenceStatus);
+    </script>
+</body>
+</html>
