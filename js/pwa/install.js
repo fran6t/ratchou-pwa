@@ -15,9 +15,6 @@ class PWAInstaller {
     async init() {
         if ('serviceWorker' in navigator) {
             try {
-                // --- Logique de chemin robuste et simplifiée ---
-                // Le Service Worker est à la racine, on utilise un chemin absolu.
-                // ⚠️ IMPORTANT : CHEMINS PWA (voir aussi sw.js ligne ~17)
                 // Détection automatique dev/prod via RatchouUtils.getAppScope()
                 const scope = RatchouUtils.getAppScope();
                 const swPath = `${scope}sw.js`;

@@ -8,17 +8,10 @@
  * 3) On intercepte les navigations HTML et on renvoie un "fallback" (index.html) en cas d'offline.
  * 4) On isole les requêtes non-GET (POST/PUT/DELETE) -> le SW ne les gère pas.
  * 5) On active navigationPreload pour accélérer le premier chargement.
- * 1.0.1 Corriger la persistance des sélections dans les panels du formulaire rapide…)
  */
 
 // 1) VERSIONNAGE : incrémente APP_VERSION à chaque release
-const APP_VERSION = '1.0.03'; // <- augmente ce nombre quand tu déploies une nouvelle version
-
-// ⚠️ IMPORTANT : CHEMINS PWA À SYNCHRONISER MANUELLEMENT
-// Les chemins sont définis dans js/pwa/install.js lignes 20-21
-// DEV:  swPath = '/ratchou/sw.js'  | scopePath = '/ratchou/'
-// PROD: swPath = '/sw.js'          | scopePath = '/'
-// ⚠️ NE PAS OUBLIER DE METTRE À JOUR LES DEUX FICHIERS !
+const APP_VERSION = '1.0.4'; // <- augmente ce nombre quand tu déploies une nouvelle version
 
 // 2) Noms de caches basés sur la version (important pour invalider l'ancien cache)
 const STATIC_CACHE = `ratchou-static-${APP_VERSION}`;

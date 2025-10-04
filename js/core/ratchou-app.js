@@ -283,7 +283,15 @@ class RatchouApp {
 
             // 2. Accounts
             if (jsonData.data.comptes?.rows) {
-                results.accounts = await this.models.accounts.bulkImport(jsonData.data.comptes.rows);
+                // Transform solde_initial to balance during import
+                const transformAccount = (account) => {
+                    if (account.solde_initial !== undefined) {
+                        account.balance = account.solde_initial;
+                        delete account.solde_initial;
+                    }
+                    return account;
+                };
+                results.accounts = await this.models.accounts.bulkImport(jsonData.data.comptes.rows, transformAccount);
             }
 
             // 3. Categories
