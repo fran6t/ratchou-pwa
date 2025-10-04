@@ -32,7 +32,7 @@ class MainController {
 
     async init() {
         this.setupEventListeners();
-        
+
         try {
             const databases = await indexedDB.databases();
             const dbExists = databases.some(db => db.name === 'ratchou');
@@ -40,6 +40,8 @@ class MainController {
             if (dbExists) {
                 await window.ratchouApp.initialize();
                 this.showLogin();
+                // Display appropriate disclaimer based on usage count
+                this.updateDisclaimerDisplay();
             } else {
                 this.showSetup();
             }
@@ -51,6 +53,8 @@ class MainController {
                 const userExists = await ratchouApp.auth.checkUserExists();
                 if (userExists) {
                     this.showLogin();
+                    // Display appropriate disclaimer based on usage count
+                    this.updateDisclaimerDisplay();
                 } else {
                     this.showSetup();
                 }
@@ -163,6 +167,9 @@ class MainController {
         try {
             const result = await ratchouApp.login(accessCode);
             if (result.success) {
+                // Increment usage count on successful login
+                this.incrementUsageCount();
+
                 // Check backup status before redirecting
                 this.checkBackupStatusAfterLogin();
             } else {
@@ -305,6 +312,68 @@ class MainController {
             console.error('Error checking backup status:', error);
             // Fallback: redirect to dashboard anyway
             window.location.replace('dashboard.html');
+        }
+    }
+
+    /**
+     * Get current usage count from localStorage
+     */
+    getUsageCount() {
+        try {
+            const count = localStorage.getItem('ratchou_usage_count');
+            return count ? parseInt(count, 10) : 0;
+        } catch (error) {
+            console.error('Error reading usage count:', error);
+            return 0;
+        }
+    }
+
+    /**
+     * Increment usage count and store in localStorage
+     */
+    incrementUsageCount() {
+        try {
+            const currentCount = this.getUsageCount();
+            const newCount = currentCount + 1;
+            localStorage.setItem('ratchou_usage_count', newCount.toString());
+            console.log(`[Usage] Usage count incremented: ${newCount}`);
+            return newCount;
+        } catch (error) {
+            console.error('Error incrementing usage count:', error);
+            return 0;
+        }
+    }
+
+    /**
+     * Update disclaimer display based on usage count
+     * - Usage < 3: Show private mode warning
+     * - Usage % 10 === 0 and >= 10: Show export reminder
+     * - Otherwise: Hide both
+     */
+    updateDisclaimerDisplay() {
+        const usageCount = this.getUsageCount();
+        const privateModeDisclaimer = document.getElementById('private-mode-disclaimer');
+        const exportReminderDisclaimer = document.getElementById('export-reminder-disclaimer');
+
+        if (!privateModeDisclaimer || !exportReminderDisclaimer) {
+            console.warn('[Disclaimer] Disclaimer elements not found');
+            return;
+        }
+
+        // Hide both initially
+        privateModeDisclaimer.classList.add('d-none');
+        exportReminderDisclaimer.classList.add('d-none');
+
+        if (usageCount < 3) {
+            // Show private mode warning for first 3 uses
+            privateModeDisclaimer.classList.remove('d-none');
+            console.log(`[Disclaimer] Showing private mode warning (usage: ${usageCount})`);
+        } else if (usageCount >= 10 && usageCount % 10 === 0) {
+            // Show export reminder every 10 uses (10, 20, 30, etc.)
+            exportReminderDisclaimer.classList.remove('d-none');
+            console.log(`[Disclaimer] Showing export reminder (usage: ${usageCount})`);
+        } else {
+            console.log(`[Disclaimer] No disclaimer shown (usage: ${usageCount})`);
         }
     }
 }

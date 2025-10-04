@@ -343,7 +343,8 @@
             }));
 
             // Rediriger vers l'application
-            window.location.replace('index.html');
+            const scope = window.location.pathname.includes('/ratchou/') ? '/ratchou/' : '/';
+            window.location.replace(`${scope}index.html`);
         }
 
         // Vérifier le statut au chargement

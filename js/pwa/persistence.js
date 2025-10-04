@@ -68,15 +68,15 @@ class StoragePersistence {
         try {
             const granted = await navigator.storage.persist();
             this.isPersistent = granted;
-            
+
             if (granted) {
                 console.log('[Storage] Persistence granted!');
-                this.showPersistenceSuccessMessage();
+                // Toast removed - disclaimers in login form handle this now
             } else {
                 console.log('[Storage] Persistence denied');
-                this.showPersistenceWarningMessage();
+                // Toast removed - disclaimers in login form handle this now
             }
-            
+
             return granted;
         } catch (error) {
             console.error('[Storage] Failed to request persistence:', error);
@@ -410,7 +410,8 @@ class StoragePersistence {
         // Redirection vers la page de validation
         const currentPath = window.location.pathname;
         const isInManageFolder = currentPath.includes('/manage/');
-        const validationPageUrl = isInManageFolder ? '../persistence-required.html' : '/persistence-required.html';
+        const scope = RatchouUtils.getAppScope();
+        const validationPageUrl = isInManageFolder ? '../persistence-required.html' : `${scope}persistence-required.html`;
 
         console.log('[Persistence] Redirection vers page de validation:', validationPageUrl);
         window.location.replace(validationPageUrl);

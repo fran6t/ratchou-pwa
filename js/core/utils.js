@@ -506,6 +506,112 @@ class RatchouUtils {
                 .forEach(key => localStorage.removeItem(key));
         }
     };
+
+    /**
+     * Get application scope path
+     * Returns '/ratchou/' for development or '/' for production
+     */
+    static getAppScope() {
+        const path = window.location.pathname;
+        return path.includes('/ratchou/') ? '/ratchou/' : '/';
+    }
+
+    /**
+     * Date utilities
+     */
+    static date = {
+        // Convert datetime to ISO string
+        toISO(dateTime) {
+            if (!dateTime) return new Date().toISOString();
+            return new Date(dateTime).toISOString();
+        },
+
+        // Current timestamp as ISO string
+        now() {
+            return new Date().toISOString();
+        },
+
+        // Format date for display
+        format(isoString, locale = 'fr-FR') {
+            return new Date(isoString).toLocaleDateString(locale);
+        },
+
+        // Format date and time for display
+        formatDateTime(isoString, locale = 'fr-FR') {
+            return new Date(isoString).toLocaleString(locale);
+        },
+
+        // Get date for input[type="date"]
+        toInputDate(isoString) {
+            return new Date(isoString).toISOString().split('T')[0];
+        },
+
+        // Generate filename timestamp in French local time (AAAMMJJHHMM format)
+        toLocalFileName(date = new Date()) {
+            // Configure for French timezone (Europe/Paris)
+            const options = {
+                timeZone: 'Europe/Paris',
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: false
+            };
+
+            // Get formatted parts
+            const parts = new Intl.DateTimeFormat('fr-CA', options).formatToParts(date);
+            const year = parts.find(p => p.type === 'year').value;
+            const month = parts.find(p => p.type === 'month').value;
+            const day = parts.find(p => p.type === 'day').value;
+            const hour = parts.find(p => p.type === 'hour').value;
+            const minute = parts.find(p => p.type === 'minute').value;
+
+            // Return in AAAMMJJHHMM format
+            return `${year}${month}${day}${hour}${minute}`;
+        },
+
+        /**
+         * Get ISO week number for a given date
+         * @param {Date|string} date - Date to get week number for
+         * @returns {Object} {year, week} - Year and week number (1-53)
+         */
+        getWeekNumber(date) {
+            const d = new Date(date);
+            d.setHours(0, 0, 0, 0);
+            // Set to nearest Thursday: current date + 4 - current day number
+            // Make Sunday's day number 7
+            d.setDate(d.getDate() + 4 - (d.getDay() || 7));
+            // Get first day of year
+            const yearStart = new Date(d.getFullYear(), 0, 1);
+            // Calculate full weeks to nearest Thursday
+            const weekNumber = Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+
+            return {
+                year: d.getFullYear(),
+                week: weekNumber
+            };
+        },
+
+        /**
+         * Format week info as string
+         * @param {Object} weekInfo - {year, week} from getWeekNumber()
+         * @returns {string} - Formatted week string (e.g., "Semaine n°45")
+         */
+        formatWeek(weekInfo) {
+            return `Semaine n°${weekInfo.week}`;
+        },
+
+        /**
+         * Get week key for grouping (includes year for cross-year handling)
+         * @param {Date|string} date - Date to get week key for
+         * @returns {string} - Week key (e.g., "2024-W45")
+         */
+        getWeekKey(date) {
+            const weekInfo = this.getWeekNumber(date);
+            return `${weekInfo.year}-W${String(weekInfo.week).padStart(2, '0')}`;
+        }
+    };
 }
 
 // Global debug flag (can be set in console for debugging)

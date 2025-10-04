@@ -18,10 +18,10 @@ class PWAInstaller {
                 // --- Logique de chemin robuste et simplifiée ---
                 // Le Service Worker est à la racine, on utilise un chemin absolu.
                 // ⚠️ IMPORTANT : CHEMINS PWA (voir aussi sw.js ligne ~17)
-                // DEV:  '/ratchou/sw.js' et '/ratchou/'
-                // PROD: '/sw.js' et '/'
-                const swPath = '/sw.js';
-                const scopePath = '/';
+                // Détection automatique dev/prod via RatchouUtils.getAppScope()
+                const scope = RatchouUtils.getAppScope();
+                const swPath = `${scope}sw.js`;
+                const scopePath = scope;
                 // --- Fin de la logique de chemin ---
 
                 console.log(`[PWA] SW path: ${swPath}, scope: ${scopePath}`);

@@ -435,7 +435,7 @@ class DashboardController {
     }
 
     /**
-     * Update transactions table (simple list without date grouping)
+     * Update transactions table (with week separators)
      * @param {number|null} newTransactionId - ID of newly created transaction to animate
      */
     updateTransactionsTable(newTransactionId = null) {
@@ -451,8 +451,25 @@ class DashboardController {
         }
 
         let html = '';
-        
+        let lastWeekKey = null;
+
         this.recentTransactions.forEach(transaction => {
+            // Check if we need to add week separator
+            const weekKey = RatchouUtils.date.getWeekKey(transaction.date_mouvement);
+            if (weekKey !== lastWeekKey) {
+                const weekInfo = RatchouUtils.date.getWeekNumber(transaction.date_mouvement);
+                const weekLabel = RatchouUtils.date.formatWeek(weekInfo);
+
+                html += `
+                    <tr class="week-separator">
+                        <td colspan="2" class="text-center fw-bold py-2 bg-light">
+                            📅 ${weekLabel}
+                        </td>
+                    </tr>
+                `;
+                lastWeekKey = weekKey;
+            }
+
             const transactionDate = new Date(transaction.date_mouvement).toLocaleDateString('fr-FR');
             const transactionTime = new Date(transaction.date_mouvement).toLocaleTimeString('fr-FR', {hour: '2-digit', minute:'2-digit'});
 
@@ -478,7 +495,7 @@ class DashboardController {
                 </tr>
             `;
         });
-        
+
         this.transactionsTable.innerHTML = html;
 
         // If a new transaction was added, set up animation cleanup

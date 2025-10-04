@@ -80,16 +80,6 @@
         <div class="row justify-content-center">
             <div class="col-md-6 col-lg-5">
                 <div class="card main-card">
-                    <!-- Card Header avec avertissement mode privé -->
-                    <div class="card-header bg-warning bg-opacity-10 border-0">
-                        <div class="d-flex align-items-center text-warning-emphasis">
-                            <i class="bi bi-exclamation-triangle-fill me-2"></i>
-                            <div class="small">
-                                <strong>Important :</strong> N'utilisez pas cette application en mode navigation privée - toutes vos données seraient perdues à la fermeture du navigateur.
-                            </div>
-                        </div>
-                    </div>
-
                     <div class="card-body p-4 p-md-5">
                         <div class="text-center mb-4">
                             <img src="assets/img/Logo_Ratchou.webp" alt="Ratchou Logo" class="logo-size">
@@ -100,6 +90,26 @@
 
                         <!-- ===== LOGIN CONTAINER ===== -->
                         <div id="login-container" class="container-hidden">
+                            <!-- Disclaimer mode privé (compteur < 3) -->
+                            <div id="private-mode-disclaimer" class="alert alert-warning d-none" role="alert">
+                                <div class="d-flex align-items-start">
+                                    <i class="bi bi-exclamation-triangle-fill me-2 mt-1"></i>
+                                    <div class="small">
+                                        <strong>Important :</strong> N'utilisez pas cette application en mode navigation privée - toutes vos données seraient perdues à la fermeture du navigateur.
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Rappel export (compteur >= 3 ET multiple de 10) -->
+                            <div id="export-reminder-disclaimer" class="alert alert-info d-none" role="alert">
+                                <div class="d-flex align-items-start">
+                                    <i class="bi bi-download me-2 mt-1"></i>
+                                    <div class="small">
+                                        <strong>💾 Sauvegarde recommandée :</strong> Pensez à exporter vos données régulièrement depuis les Paramètres.
+                                    </div>
+                                </div>
+                            </div>
+
                             <div id="loginError" class="alert alert-danger d-none" role="alert"></div>
                             <form id="loginForm" autocomplete="off">
                                 <!-- Champ factice pour tromper les gestionnaires de mots de passe -->

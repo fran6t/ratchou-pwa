@@ -499,7 +499,7 @@ class MouvementsController {
     }
 
     /**
-     * Display search results
+     * Display search results (with week and date separators)
      */
     displayResults(transactions) {
         // Use Bootstrap classes instead of inline styles
@@ -512,27 +512,70 @@ class MouvementsController {
         // Clear table
         this.movementsTableBody.innerHTML = '';
 
-        // Group transactions by date
-        const groupedTransactions = this.groupTransactionsByDate(transactions);
+        // Group transactions by week, then by date
+        const groupedByWeek = this.groupTransactionsByWeek(transactions);
 
         // Display transactions
-        Object.keys(groupedTransactions).sort().reverse().forEach(date => {
-            // Add date separator
-            const dateRow = document.createElement('tr');
-            dateRow.className = 'date-separator';
-            dateRow.innerHTML = `
-                <td colspan="3" class="text-center fw-bold py-2">
-                    📅 ${this.formatDate(date)}
+        Object.keys(groupedByWeek).sort().reverse().forEach(weekKey => {
+            // Add week separator
+            const weekRow = document.createElement('tr');
+            weekRow.className = 'week-separator';
+            const weekInfo = groupedByWeek[weekKey].weekInfo;
+            const weekLabel = RatchouUtils.date.formatWeek(weekInfo);
+            weekRow.innerHTML = `
+                <td colspan="3" class="text-center fw-bold py-2 bg-primary text-white">
+                    📅 ${weekLabel}
                 </td>
             `;
-            this.movementsTableBody.appendChild(dateRow);
+            this.movementsTableBody.appendChild(weekRow);
 
-            // Add transactions for this date
-            groupedTransactions[date].forEach(transaction => {
-                const row = this.createTransactionRow(transaction);
-                this.movementsTableBody.appendChild(row);
+            // Group transactions by date within this week
+            const groupedByDate = this.groupTransactionsByDate(groupedByWeek[weekKey].transactions);
+
+            // Display each date in this week
+            Object.keys(groupedByDate).sort().reverse().forEach(date => {
+                // Add date separator
+                const dateRow = document.createElement('tr');
+                dateRow.className = 'date-separator';
+                dateRow.innerHTML = `
+                    <td colspan="3" class="text-center fw-bold py-2 bg-light">
+                        📆 ${this.formatDate(date)}
+                    </td>
+                `;
+                this.movementsTableBody.appendChild(dateRow);
+
+                // Add transactions for this date
+                groupedByDate[date].forEach(transaction => {
+                    const row = this.createTransactionRow(transaction);
+                    this.movementsTableBody.appendChild(row);
+                });
             });
         });
+    }
+
+    /**
+     * Group transactions by week
+     */
+    groupTransactionsByWeek(transactions) {
+        const grouped = {};
+
+        transactions.forEach(transaction => {
+            const weekKey = RatchouUtils.date.getWeekKey(transaction.date_mouvement);
+            if (!grouped[weekKey]) {
+                grouped[weekKey] = {
+                    weekInfo: RatchouUtils.date.getWeekNumber(transaction.date_mouvement),
+                    transactions: []
+                };
+            }
+            grouped[weekKey].transactions.push(transaction);
+        });
+
+        // Sort transactions within each week by date (descending)
+        Object.keys(grouped).forEach(weekKey => {
+            grouped[weekKey].transactions.sort((a, b) => new Date(b.date_mouvement) - new Date(a.date_mouvement));
+        });
+
+        return grouped;
     }
 
     /**
@@ -540,7 +583,7 @@ class MouvementsController {
      */
     groupTransactionsByDate(transactions) {
         const grouped = {};
-        
+
         transactions.forEach(transaction => {
             const date = transaction.date_mouvement.split('T')[0]; // Get date part only
             if (!grouped[date]) {
@@ -548,12 +591,12 @@ class MouvementsController {
             }
             grouped[date].push(transaction);
         });
-        
+
         // Sort transactions within each date by time (descending)
         Object.keys(grouped).forEach(date => {
             grouped[date].sort((a, b) => new Date(b.date_mouvement) - new Date(a.date_mouvement));
         });
-        
+
         return grouped;
     }
 
