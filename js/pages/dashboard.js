@@ -462,7 +462,7 @@ class DashboardController {
 
                 html += `
                     <tr class="week-separator">
-                        <td colspan="2" class="text-center fw-bold py-2 bg-light">
+                        <td colspan="2" class="text-center fw-bold py-2 bg-body-secondary text-body">
                             📅 ${weekLabel}
                         </td>
                     </tr>

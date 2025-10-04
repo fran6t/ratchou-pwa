@@ -523,7 +523,7 @@ class MouvementsController {
             const weekInfo = groupedByWeek[weekKey].weekInfo;
             const weekLabel = RatchouUtils.date.formatWeek(weekInfo);
             weekRow.innerHTML = `
-                <td colspan="3" class="text-center fw-bold py-2 bg-primary text-white">
+                <td colspan="3" class="text-center fw-bold py-2 bg-body-secondary text-body">
                     📅 ${weekLabel}
                 </td>
             `;
