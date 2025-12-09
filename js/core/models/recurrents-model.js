@@ -10,12 +10,12 @@ class RecurringExpensesModel extends BaseModel {
 
     async getActive() {
         const allExpenses = await this.getAll();
-        return allExpenses.filter(expense => expense.is_active === true);
+        return allExpenses.filter(expense => expense.is_active);
     }
 
     async getActiveByAccount(accountId) {
         const allExpenses = await this.getAll();
-        return allExpenses.filter(expense => expense.is_active === true && expense.account_id === accountId);
+        return allExpenses.filter(expense => expense.is_active && expense.account_id === accountId);
     }
 
     async getByCategory(categoryId) {
@@ -71,7 +71,7 @@ class RecurringExpensesModel extends BaseModel {
                 expenses = await this.getActiveByAccount(accountId);
             } else {
                 const allExpenses = await this.getAll();
-                expenses = allExpenses.filter(expense => expense.is_active === true);
+                expenses = allExpenses.filter(expense => expense.is_active);
             }
 
             const upcoming = [];
@@ -133,7 +133,7 @@ class RecurringExpensesModel extends BaseModel {
     async processAll() {
         try {
             const allExpenses = await this.getAll();
-            const activeExpenses = allExpenses.filter(expense => expense.is_active === true);
+            const activeExpenses = allExpenses.filter(expense => expense.is_active);
             const processed = [];
             for (const expense of activeExpenses) {
                 if (this.shouldProcessToday(expense)) {
