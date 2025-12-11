@@ -167,9 +167,25 @@ class BaseModel {
 
     /**
      * Transform data for storage (override in specific models if needed)
+     *
+     * Generic boolean to number conversion for IndexedDB indexes
+     * Can be overridden by specific models for additional transformations
      */
     transformForStorage(data) {
-        return data;
+        // Clone data to avoid mutations
+        const transformed = { ...data };
+
+        // List of known boolean fields that should be numeric for IndexedDB
+        const booleanFields = ['is_active', 'is_principal', 'is_mandatory', 'is_default', 'is_deleted'];
+
+        // Convert boolean values to numbers (true → 1, false → 0)
+        for (const field of booleanFields) {
+            if (field in transformed && typeof transformed[field] === 'boolean') {
+                transformed[field] = transformed[field] ? 1 : 0;
+            }
+        }
+
+        return transformed;
     }
 
     /**

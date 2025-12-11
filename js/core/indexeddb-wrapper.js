@@ -105,6 +105,7 @@ const DATABASE_SCHEMA = {
             updated_at: { keyPath: 'updated_at', options: { unique: false } },
             is_deleted: { keyPath: 'is_deleted', options: { unique: false } },
             sync_rev: { keyPath: 'rev', options: { unique: false } },
+            recurring_expense_id: { keyPath: 'recurring_expense_id', options: { unique: false } },
         },
         fields: {
             id: { type: 'string', required: true },
@@ -115,6 +116,7 @@ const DATABASE_SCHEMA = {
             category_id: { type: 'string', required: true },
             payee_id: { type: 'string', required: true },
             expense_type_id: { type: 'string', required: true },
+            recurring_expense_id: { type: 'string', required: false },
         }
     },
     DEPENSES_FIXES: {
@@ -133,6 +135,7 @@ const DATABASE_SCHEMA = {
         },
         fields: {
             id: { type: 'string', required: true },
+            libelle: { type: 'string', required: true },
             day_of_month: { type: 'number', required: true },
             amount: { type: 'number', required: true },
             description: { type: 'string', required: false },
@@ -141,13 +144,16 @@ const DATABASE_SCHEMA = {
             payee_id: { type: 'string', required: true },
             expense_type_id: { type: 'string', required: true },
             is_active: { type: 'number', required: true },
+            frequency: { type: 'number', required: true },
+            start_date: { type: 'string', required: true },
+            last_execution: { type: 'string', required: false },
         }
     },
 };
 
 
 class IndexedDBWrapper {
-    constructor(dbName = 'ratchou', version = 1) {
+    constructor(dbName = 'ratchou', version = 2) {
         this.dbName = dbName;
         this.version = version;
         this.db = null;
@@ -217,9 +223,141 @@ class IndexedDBWrapper {
      * Setup object stores and indexes during database upgrade
      */
     setupStores(db, oldVersion, transaction) {
-        // The setup is now idempotent, so we can run it on every upgrade.
-        // We could add version-specific logic here if needed in the future.
+        console.log(`🔄 Upgrading database from version ${oldVersion} to ${this.version}`);
+
+        // Create initial stores idempotently
         this.createInitialStores(db, transaction);
+
+        // Version-specific migrations
+        if (oldVersion < 2) {
+            console.log('📦 Migrating to version 2: Recurring expenses enhancements');
+            this.migrateToVersion2(transaction);
+        }
+    }
+
+    /**
+     * Migration vers version 2
+     * Ajoute start_date, frequency, libelle, last_execution aux dépenses récurrentes
+     * Ajoute recurring_expense_id aux mouvements
+     */
+    migrateToVersion2(transaction) {
+        try {
+            console.log('🔄 Starting migration to version 2...');
+
+            // 1. Migrer DEPENSES_FIXES
+            this.migrateRecurringExpenses(transaction);
+
+            // 2. Migrer MOUVEMENTS
+            this.migrateMovements(transaction);
+
+            console.log('✅ Migration to version 2 completed');
+        } catch (error) {
+            console.error('❌ Critical error in migrateToVersion2:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Migre les dépenses récurrentes existantes
+     */
+    migrateRecurringExpenses(transaction) {
+        const store = transaction.objectStore('DEPENSES_FIXES');
+        const request = store.openCursor();
+        let count = 0;
+
+        request.onsuccess = (event) => {
+            const cursor = event.target.result;
+            if (!cursor) {
+                console.log(`✅ Migrated ${count} recurring expenses`);
+                return;
+            }
+
+            const expense = cursor.value;
+            let updated = false;
+
+            // Ajouter start_date si manquant
+            if (!expense.start_date) {
+                if (expense.last_execution) {
+                    // Utiliser last_execution comme référence
+                    expense.start_date = expense.last_execution.split('T')[0];
+                } else {
+                    // Défaut : début du mois actuel
+                    const now = new Date();
+                    now.setDate(expense.day_of_month);
+                    expense.start_date = now.toISOString().split('T')[0];
+                }
+                updated = true;
+            }
+
+            // Ajouter frequency si manquant (défaut: 1 = mensuel)
+            if (expense.frequency === undefined || expense.frequency === null) {
+                expense.frequency = 1;
+                updated = true;
+            }
+
+            // Ajouter last_execution si manquant
+            if (expense.last_execution === undefined) {
+                expense.last_execution = null;
+                updated = true;
+            }
+
+            // Ajouter libelle si manquant (cas rare)
+            if (!expense.libelle && expense.description) {
+                expense.libelle = expense.description;
+                updated = true;
+            }
+
+            // Supprimer start_month obsolète
+            if (expense.start_month !== undefined) {
+                delete expense.start_month;
+                updated = true;
+            }
+
+            if (updated) {
+                cursor.update(expense);
+                count++;
+                console.log(`✅ Migrated: ${expense.libelle || expense.id}`);
+            }
+
+            cursor.continue();
+        };
+
+        request.onerror = () => {
+            console.error('❌ Error migrating DEPENSES_FIXES:', request.error);
+        };
+    }
+
+    /**
+     * Migre les mouvements existants
+     * Ajoute recurring_expense_id = null (tous considérés comme manuels)
+     */
+    migrateMovements(transaction) {
+        const store = transaction.objectStore('MOUVEMENTS');
+        const request = store.openCursor();
+        let count = 0;
+
+        request.onsuccess = (event) => {
+            const cursor = event.target.result;
+            if (!cursor) {
+                console.log(`✅ Migrated ${count} movements`);
+                return;
+            }
+
+            const movement = cursor.value;
+
+            // Ajouter recurring_expense_id (null pour tous les existants = manuels)
+            if (movement.recurring_expense_id === undefined) {
+                movement.recurring_expense_id = null;
+                cursor.update(movement);
+                count++;
+            }
+
+            cursor.continue();
+        };
+
+        request.onerror = () => {
+            console.error('❌ Error migrating MOUVEMENTS:', request.error);
+        };
     }
 
     /**

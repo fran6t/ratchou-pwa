@@ -98,6 +98,80 @@ class RecurringExpensesModel extends BaseModel {
         }
     }
 
+    /**
+     * Calcule les occurrences dues pour une dépense récurrente
+     * Algorithme défensif pour éviter les dérives de date JavaScript
+     * Fréquence en MOIS : 1=mensuel, 3=trimestriel, 12=annuel
+     * @param {Object} expense - Dépense récurrente
+     * @returns {Array<Object>} Liste des occurrences { date, amount }
+     */
+    calculateDueOccurrences(expense) {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        const frequency = expense.frequency || 1;
+        const occurrences = [];
+
+        // Point de départ intelligent
+        let startYear, startMonth, startDay;
+        if (expense.last_execution) {
+            const lastDate = new Date(expense.last_execution);
+            startYear = lastDate.getFullYear();
+            startMonth = lastDate.getMonth() + frequency; // Prochaine occurrence
+            startDay = expense.day_of_month;
+        } else {
+            const startDate = new Date(expense.start_date);
+            startYear = startDate.getFullYear();
+            startMonth = startDate.getMonth();
+            startDay = expense.day_of_month;
+        }
+
+        // Limite de sécurité : 5 ans max
+        const maxPastDate = new Date(today);
+        maxPastDate.setFullYear(maxPastDate.getFullYear() - 5);
+
+        // Générer occurrences
+        let currentYear = startYear;
+        let currentMonth = startMonth;
+
+        while (true) {
+            // Construction défensive de la date (évite dérive setDate)
+            const lastDayOfMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+            const adjustedDay = Math.min(startDay, lastDayOfMonth);
+            const currentDate = new Date(currentYear, currentMonth, adjustedDay);
+
+            // Vérifications limites
+            if (currentDate > today) break;
+            if (currentDate < maxPastDate) {
+                console.warn(`⚠️ Occurrence trop ancienne pour ${expense.libelle}, limitation à 5 ans`);
+                currentMonth += frequency;
+                if (currentMonth >= 12) {
+                    currentYear += Math.floor(currentMonth / 12);
+                    currentMonth = currentMonth % 12;
+                }
+                continue;
+            }
+
+            // Ajouter occurrence
+            occurrences.push({
+                date: currentDate.toISOString().split('T')[0], // YYYY-MM-DD
+                amount: expense.amount
+            });
+
+            // Avancer à la prochaine période
+            currentMonth += frequency;
+            if (currentMonth >= 12) {
+                currentYear += Math.floor(currentMonth / 12);
+                currentMonth = currentMonth % 12;
+            }
+        }
+
+        return occurrences;
+    }
+
+    /**
+     * Calcule la prochaine date d'exécution (legacy - conservé pour compatibilité)
+     */
     calculateNextDate(expense) {
         const today = new Date();
         const targetDay = expense.day_of_month;
@@ -112,6 +186,42 @@ class RecurringExpensesModel extends BaseModel {
             nextDate.setDate(0);
         }
         return nextDate;
+    }
+
+    /**
+     * Récupère tous les mouvements créés pour une dépense récurrente
+     * Utilisé pour filtrage préventif (protection anti-doublon)
+     * @param {string} recurringId - ID de la dépense récurrente
+     * @returns {Promise<Array<Object>>} Liste des mouvements
+     */
+    async getMovementsByRecurringId(recurringId) {
+        // Use wrapper's getAll method with index and query
+        // Returns ALL movements (including deleted) to prevent recreating duplicates
+        return await this.db.getAll('MOUVEMENTS', 'recurring_expense_id', recurringId);
+    }
+
+    /**
+     * Crée un mouvement récurrent avec traçabilité
+     * Format date strict : YYYY-MM-DDT00:00:00.000Z (toujours minuit UTC)
+     * @param {Object} expense - Dépense récurrente
+     * @param {string} date - Date du mouvement (YYYY-MM-DD)
+     * @returns {Promise<Object>} Résultat de création
+     */
+    async createRecurringMovement(expense, date) {
+        const transactionData = {
+            amount: expense.amount,
+            category_id: expense.category_id,
+            payee_id: expense.payee_id,
+            expense_type_id: expense.expense_type_id,
+            description: `Dépense récurrente: ${expense.libelle}`,
+            account_id: expense.account_id,
+            date_mouvement: `${date}T00:00:00.000Z`,           // ⚠️ Format strict minuit UTC
+            recurring_expense_id: expense.id                    // ⚠️ Traçabilité
+        };
+
+        const transactionsModel = new TransactionsModel(this.db);
+        return await transactionsModel.create(transactionData);
+        // Note: updated_at, rev, device_id ajoutés automatiquement par putWithMeta()
     }
 
     shouldProcessToday(expense) {
@@ -130,24 +240,87 @@ class RecurringExpensesModel extends BaseModel {
         return today >= nextExecution;
     }
 
-    async processAll() {
+    /**
+     * Traite toutes les dépenses récurrentes actives
+     * Calcul optimisé : pas de boucle jour-par-jour
+     * Protection anti-doublon : 100% applicative (filtrage préventif)
+     * @returns {Promise<Object>} { success, created, skipped, errors }
+     */
+    async processAllRecurring() {
         try {
-            const allExpenses = await this.getAll();
-            const activeExpenses = allExpenses.filter(expense => expense.is_active);
-            const processed = [];
+            const activeExpenses = await this.getActive();
+            let totalCreated = 0, totalSkipped = 0, totalErrors = 0;
+
+            console.log(`🔄 Processing ${activeExpenses.length} recurring expenses...`);
+
             for (const expense of activeExpenses) {
-                if (this.shouldProcessToday(expense)) {
-                    const result = await this.generateTransaction(expense);
-                    if (result.success) {
-                        processed.push(expense);
+                // 1. Calculer occurrences dues
+                const dueOccurrences = this.calculateDueOccurrences(expense);
+
+                if (dueOccurrences.length === 0) {
+                    console.log(`✅ ${expense.libelle}: Up to date`);
+                    continue;
+                }
+
+                console.log(`📅 ${expense.libelle}: ${dueOccurrences.length} occurrences due`);
+
+                // 2. PROTECTION ANTI-DOUBLON : Récupérer mouvements existants
+                const existingMovements = await this.getMovementsByRecurringId(expense.id);
+                const existingDates = new Set(
+                    existingMovements.map(m => m.date_mouvement.split('T')[0])
+                );
+
+                // 3. Filtrer occurrences déjà créées
+                const toCreate = dueOccurrences.filter(occ => !existingDates.has(occ.date));
+
+                if (toCreate.length === 0) {
+                    console.log(`⏭️  ${expense.libelle}: All occurrences already created`);
+                    totalSkipped += dueOccurrences.length;
+                    continue;
+                }
+
+                console.log(`📝 ${expense.libelle}: Creating ${toCreate.length} movements`);
+
+                // 4. Créer mouvements manquants
+                for (const occurrence of toCreate) {
+                    try {
+                        await this.createRecurringMovement(expense, occurrence.date);
+                        totalCreated++;
+                        console.log(`✅ Created: ${expense.libelle} on ${occurrence.date}`);
+                    } catch (error) {
+                        totalErrors++;
+                        console.error(`❌ Error creating movement: ${expense.libelle}`, error);
                     }
                 }
+
+                // 5. Mettre à jour last_execution
+                if (toCreate.length > 0) {
+                    const latestDate = toCreate[toCreate.length - 1].date;
+                    await this.update(expense.id, {
+                        last_execution: latestDate
+                    });
+                }
             }
-            return { success: true, message: `${processed.length} dépenses récurrentes traitées`, data: { count: processed.length, processed } };
+
+            console.log(`🎯 Summary: ${totalCreated} created, ${totalSkipped} skipped, ${totalErrors} errors`);
+
+            return {
+                success: true,
+                created: totalCreated,
+                skipped: totalSkipped,
+                errors: totalErrors
+            };
         } catch (error) {
-            console.error('Error processing recurring expenses:', error);
+            console.error('❌ Error processing recurring expenses:', error);
             return RatchouUtils.error.handleIndexedDBError(error, 'traitement dépenses récurrentes');
         }
+    }
+
+    /**
+     * Legacy method - kept for compatibility
+     */
+    async processAll() {
+        return await this.processAllRecurring();
     }
 
     async generateTransaction(expense) {
@@ -185,22 +358,81 @@ class RecurringExpensesModel extends BaseModel {
         if (data.amount !== Math.floor(data.amount)) data.amount = RatchouUtils.currency.toCents(data.amount);
         if (data.day_of_month < 1 || data.day_of_month > 31) throw new Error('Le jour du mois doit être entre 1 et 31');
         if (data.frequency === undefined) data.frequency = 1;
-        if (data.is_active === undefined) data.is_active = true;
+        if (data.is_active === undefined) data.is_active = 1;
+
+        // Valider start_date (obligatoire pour v2.0)
+        if (!data.start_date) {
+            // Si absent, utiliser le début du mois actuel par défaut
+            const today = new Date();
+            const startDate = new Date(today.getFullYear(), today.getMonth(), 1);
+            data.start_date = startDate.toISOString().split('T')[0];
+        }
     }
 
     validateUpdate(data) {
         super.validateUpdate(data);
+
+        // Validation libellé
         if (data.libelle !== undefined) {
-            if (!data.libelle || data.libelle.trim() === '') throw new Error('Le libellé ne peut pas être vide');
+            if (!data.libelle || data.libelle.trim() === '')
+                throw new Error('Le libellé ne peut pas être vide');
             data.libelle = data.libelle.trim();
         }
+
+        // Validation montant
         if (data.amount !== undefined) {
-            if (typeof data.amount !== 'number') throw new Error('Le montant doit être un nombre');
-            if (data.amount !== Math.floor(data.amount)) data.amount = RatchouUtils.currency.toCents(data.amount);
+            if (typeof data.amount !== 'number')
+                throw new Error('Le montant doit être un nombre');
+            if (data.amount !== Math.floor(data.amount))
+                data.amount = RatchouUtils.currency.toCents(data.amount);
         }
+
+        // Validation jour du mois
         if (data.day_of_month !== undefined) {
-            if (data.day_of_month < 1 || data.day_of_month > 31) throw new Error('Le jour du mois doit être entre 1 et 31');
+            if (data.day_of_month < 1 || data.day_of_month > 31)
+                throw new Error('Le jour du mois doit être entre 1 et 31');
         }
+
+        // ⚠️ FIX RISQUE 3 : Recalcul last_execution si champs critiques changés
+        const criticalFieldsChanged =
+            data.start_date !== undefined ||
+            data.frequency !== undefined ||
+            data.day_of_month !== undefined;
+
+        if (criticalFieldsChanged) {
+            // Si start_date est dans le futur, reset last_execution
+            if (data.start_date) {
+                const startDate = new Date(data.start_date);
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+
+                if (startDate > today) {
+                    data.last_execution = null;
+                    console.log(`🔄 Reset last_execution (start_date in future)`);
+                }
+            }
+
+            // Si frequency/day_of_month changent et que last_execution existe,
+            // on le laisse tel quel pour le moment (sera recalculé au prochain processAllRecurring)
+            // Note: Une version plus avancée pourrait recalculer intelligemment ici
+        }
+    }
+
+    transformForStorage(data) {
+        const transformed = super.transformForStorage(data);
+
+        // Auto-calcul de day_of_month depuis start_date si manquant ou incohérent
+        // Garantit la cohérence start_date ↔ day_of_month
+        if (transformed.start_date) {
+            const startDate = new Date(transformed.start_date);
+            const dayFromStartDate = startDate.getDate();
+
+            // Recalculer day_of_month dans tous les cas pour garantir la cohérence
+            // (même si day_of_month existe déjà, on utilise celui de start_date)
+            transformed.day_of_month = dayFromStartDate;
+        }
+
+        return transformed;
     }
 
     async getEnriched(expenses = null) {
@@ -254,7 +486,12 @@ class RecurringExpensesModel extends BaseModel {
             });
 
             const defaults = [];
-            
+
+            // Date de début : début du mois actuel
+            const today = new Date();
+            const startDate = new Date(today.getFullYear(), today.getMonth(), 1);
+            const startDateString = startDate.toISOString().split('T')[0]; // YYYY-MM-DD
+
             // Salaire (revenus positifs)
             if (principalAccount && salaryCategory && employerPayee && defaultExpenseType) {
                 defaults.push({
@@ -266,10 +503,11 @@ class RecurringExpensesModel extends BaseModel {
                     expense_type_id: defaultExpenseType.id,
                     day_of_month: 28,
                     frequency: 1,
-                    is_active: true
+                    start_date: startDateString,
+                    is_active: 1
                 });
             }
-            
+
             // Assurance maison (dépense négative)
             if (principalAccount && insuranceCategory && insurancePayee && defaultExpenseType) {
                 defaults.push({
@@ -281,7 +519,8 @@ class RecurringExpensesModel extends BaseModel {
                     expense_type_id: defaultExpenseType.id,
                     day_of_month: 5,
                     frequency: 1,
-                    is_active: true
+                    start_date: startDateString,
+                    is_active: 1
                 });
             }
 

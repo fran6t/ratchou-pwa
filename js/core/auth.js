@@ -320,7 +320,10 @@ auth.guardPage = function (kind) {
         // User is not authenticated but on app page - redirect to login
         if (!location.pathname.endsWith('index.html')) {
             console.log('Unauthenticated user on app page - redirecting to login');
-            location.replace('index.html');
+            // Détecter si on est dans le dossier manage/ pour ajuster le chemin
+            const isInManageFolder = location.pathname.includes('/manage/');
+            const indexPath = isInManageFolder ? '../index.html' : 'index.html';
+            location.replace(indexPath);
         }
         return false; // Page access denied (redirected)
     }

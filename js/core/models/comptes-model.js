@@ -86,6 +86,29 @@ class AccountsModel extends BaseModel {
     }
 
     /**
+     * Correct account balance (for manual adjustments)
+     * @param {number} accountId - Account ID
+     * @param {number} newBalanceStorageUnit - New balance in storage units (cents for EUR, satoshis for BTC)
+     * @returns {Promise<Object>} Result with success status and updated account data
+     */
+    async correctBalance(accountId, newBalanceStorageUnit) {
+        try {
+            const account = await this.getById(accountId);
+            if (!account) {
+                return RatchouUtils.error.error('Compte introuvable');
+            }
+
+            // Update balance directly with storage unit value (no conversion needed)
+            const result = await this.update(accountId, { balance: newBalanceStorageUnit });
+
+            return result;
+        } catch (error) {
+            console.error('Error correcting balance:', error);
+            return RatchouUtils.error.handleIndexedDBError(error, 'correction du solde');
+        }
+    }
+
+    /**
      * Get accounts sorted by principal first, then by name
      */
     async getAllSorted() {

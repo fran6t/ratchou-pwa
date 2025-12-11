@@ -145,12 +145,21 @@ class RatchouApp {
     async login(accessCode) {
         this.requireInitialized();
         const result = await this.auth.login(accessCode);
-        
+
         if (result.success) {
             // Process recurring expenses on successful login
-            await this.processRecurringExpenses();
+            const recurringResult = await this.processRecurringExpenses();
+
+            // Toast discret si mouvements créés
+            if (recurringResult && recurringResult.created > 0) {
+                RatchouUtils.ui.toast(
+                    `${recurringResult.created} dépense(s) récurrente(s) créée(s)`,
+                    'success',
+                    3000
+                );
+            }
         }
-        
+
         return result;
     }
 
@@ -316,7 +325,16 @@ class RatchouApp {
 
             // 7. Recurring expenses
             if (jsonData.data.recurrents?.rows) {
-                results.recurringExpenses = await this.models.recurringExpenses.bulkImport(jsonData.data.recurrents.rows);
+                results.recurringExpenses = await this.models.recurringExpenses.bulkImport(
+                    jsonData.data.recurrents.rows,
+                    (row) => {
+                        // Transform boolean is_active to numeric for IndexedDB
+                        if (typeof row.is_active === 'boolean') {
+                            row.is_active = row.is_active ? 1 : 0;
+                        }
+                        return row;
+                    }
+                );
             }
 
             // Ensure minimum required data exists after import

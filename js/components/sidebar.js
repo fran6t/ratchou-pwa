@@ -80,7 +80,10 @@ export async function initializeSidebarEvents() {
             if (typeof ratchouApp !== 'undefined') {
                 ratchouApp.logout();
             }
-            location.replace('index.html');
+            // Détecter si on est dans le dossier manage/ pour ajuster le chemin
+            const isInManageFolder = window.location.pathname.includes('/manage/');
+            const indexPath = isInManageFolder ? '../index.html' : 'index.html';
+            location.replace(indexPath);
         });
     }
 }

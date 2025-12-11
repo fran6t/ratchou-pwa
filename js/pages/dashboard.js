@@ -489,7 +489,10 @@ class DashboardController {
                         <br><small class="text-muted">${transactionDate} ${transactionTime}</small>
                     </td>
                     <td>
-                        <div class="fw-bold">${transaction.category_name || 'N/A'}</div>
+                        <div class="fw-bold">
+                            ${transaction.category_name || 'N/A'}
+                            ${transaction.recurring_expense_id ? '<span class="badge bg-secondary ms-1" title="Dépense récurrente automatique">🔄</span>' : ''}
+                        </div>
                         <small class="text-muted">${transaction.payee_name || 'N/A'} - ${transaction.expense_type_name || 'N/A'}</small>
                     </td>
                 </tr>

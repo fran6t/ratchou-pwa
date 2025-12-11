@@ -11,7 +11,7 @@
  */
 
 // 1) VERSIONNAGE : incrémente APP_VERSION à chaque release
-const APP_VERSION = '1.0.6'; // <- augmente ce nombre quand tu déploies une nouvelle version
+const APP_VERSION = '1.0.7'; // <- augmente ce nombre quand tu déploies une nouvelle version
 
 // 2) Noms de caches basés sur la version (important pour invalider l'ancien cache)
 const STATIC_CACHE = `ratchou-static-${APP_VERSION}`;

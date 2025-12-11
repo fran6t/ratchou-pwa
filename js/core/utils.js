@@ -508,6 +508,49 @@ class RatchouUtils {
     };
 
     /**
+     * UI utilities
+     */
+    static ui = {
+        // Show toast notification
+        toast(message, type = 'info', duration = 5000) {
+            const toast = document.createElement('div');
+            toast.className = 'position-fixed top-0 start-50 translate-middle-x mt-3';
+            toast.style.zIndex = '1060';
+
+            const bgClass = {
+                'success': 'alert-success',
+                'warning': 'alert-warning',
+                'error': 'alert-danger',
+                'info': 'alert-info'
+            }[type] || 'alert-info';
+
+            const icon = {
+                'success': 'check-circle',
+                'warning': 'exclamation-triangle',
+                'error': 'x-circle',
+                'info': 'info-circle'
+            }[type] || 'info-circle';
+
+            toast.innerHTML = `
+                <div class="alert ${bgClass} alert-dismissible shadow-lg" role="alert">
+                    <i class="bi bi-${icon} me-2"></i>
+                    ${message}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            `;
+
+            document.body.appendChild(toast);
+
+            // Auto-remove after specified duration
+            setTimeout(() => {
+                if (toast.parentNode) {
+                    toast.parentNode.removeChild(toast);
+                }
+            }, duration);
+        }
+    };
+
+    /**
      * Get application scope path
      * Returns '/ratchou/' for development or '/' for production
      */

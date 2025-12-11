@@ -632,9 +632,12 @@ class MouvementsController {
                 <small class="text-muted">${time}</small>
             </td>
             <td>
-                <div><strong>${transaction.category_name || 'N/A'}</strong></div>
+                <div>
+                    <strong>${transaction.category_name || 'N/A'}</strong>
+                    ${transaction.recurring_expense_id ? '<span class="badge bg-secondary ms-1" title="Dépense récurrente automatique">🔄</span>' : ''}
+                </div>
                 <small class="text-muted">
-                    🏪 ${transaction.payee_name || 'Aucun'} - 
+                    🏪 ${transaction.payee_name || 'Aucun'} -
                     💳 ${transaction.expense_type_name || 'N/A'}
                 </small>
                 ${transaction.description ? `<div><small class="text-info">💬 ${transaction.description}</small></div>` : ''}

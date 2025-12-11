@@ -79,6 +79,7 @@ class RecurrentsController {
             const balanceAmount = RatchouUtils.currency.fromStorageUnit(this.currentAccount.balance, currency);
 
             accountBalanceEl.textContent = balance;
+            // Amélioration : ajouter la classe de couleur selon positif/négatif
             accountBalanceEl.classList.remove('amount-positive', 'amount-negative');
             accountBalanceEl.classList.add(balanceAmount >= 0 ? 'amount-positive' : 'amount-negative');
         }
@@ -104,6 +105,15 @@ class RecurrentsController {
                 e.preventDefault();
                 this.openAccountSelectModal();
             }
+        });
+
+        // Balance correction
+        document.getElementById('balanceModal').addEventListener('show.bs.modal', () => {
+            this.setupBalanceModal();
+        });
+
+        document.getElementById('updateBalanceBtn').addEventListener('click', () => {
+            this.handleBalanceUpdate();
         });
     }
 
@@ -157,8 +167,8 @@ class RecurrentsController {
         document.getElementById('recurrent-libelle').value = recurrent.libelle;
         const currency = this.currentAccount?.currency || 'EUR';
         document.getElementById('recurrent-montant').value = RatchouUtils.currency.fromStorageUnit(recurrent.amount, currency);
-        document.getElementById('recurrent-jour').value = recurrent.day_of_month;
-        document.getElementById('recurrent-frequence').value = recurrent.frequency;
+        document.getElementById('recurrent-start-date').value = recurrent.start_date || '';
+        document.getElementById('recurrent-frequence').value = recurrent.frequency || 1;
 
         document.getElementById('categorie_id').value = recurrent.category_id;
         document.getElementById('beneficiaire_id').value = recurrent.payee_id || '';
@@ -184,10 +194,15 @@ class RecurrentsController {
         const formData = new FormData(this.recurrentForm);
         const currency = this.currentAccount?.currency || 'EUR';
 
+        const startDate = formData.get('start_date');
+        const startDateObj = new Date(startDate);
+        const dayOfMonth = startDateObj.getDate(); // Extrait le jour (1-31)
+
         const data = {
             libelle: formData.get('libelle'),
             amount: RatchouUtils.currency.toStorageUnit(parseFloat(formData.get('montant')), currency),
-            day_of_month: parseInt(formData.get('jour_mois')),
+            start_date: startDate,
+            day_of_month: dayOfMonth,  // Calculé automatiquement depuis start_date
             frequency: parseInt(formData.get('frequence')),
             account_id: this.currentAccount.id,
             category_id: formData.get('categorie_id') || null,
@@ -202,7 +217,7 @@ class RecurrentsController {
             if (id) {
                 await this.recurrentsModel.update(id, data);
             } else {
-                data.is_active = true;
+                data.is_active = 1;
                 await this.recurrentsModel.create(data);
             }
             this.hideForm();
@@ -274,6 +289,21 @@ class RecurrentsController {
             const formattedAmount = RatchouUtils.currency.formatWithCurrency(absAmount, currency);
             const sign = monthlyAmount >= 0 ? '+' : '-';
 
+            // Fréquence lisible
+            const frequencyMap = {
+                1: 'Mensuel',
+                2: 'Bimestriel',
+                3: 'Trimestriel',
+                6: 'Semestriel',
+                12: 'Annuel'
+            };
+            const frequencyLabel = frequencyMap[r.frequency] || `Tous les ${r.frequency} mois`;
+
+            // Dernière exécution
+            const lastExec = r.last_execution
+                ? `Dernier traitement : ${new Date(r.last_execution).toLocaleDateString('fr-FR')}`
+                : 'Jamais traité';
+
             return `
                 <div class="card mb-2 recurrent-card ${!r.is_active ? 'opacity-50' : ''}" style="cursor: pointer;" data-recurrent-id="${r.id}">
                     <div class="card-body">
@@ -283,10 +313,13 @@ class RecurrentsController {
                                 <small class="d-block text-muted">
                                     ${categoriesMap.get(r.category_id) || 'N/A'}
                                 </small>
+                                <small class="d-block text-muted">
+                                    🔄 ${frequencyLabel} • Jour ${r.day_of_month} • ${lastExec}
+                                </small>
                             </div>
                             <div class="col text-end">
                                 <strong class="${amountClass}">${sign} ${formattedAmount} / mois</strong>
-                                <small class="d-block text-muted">Le ${r.day_of_month} de chaque mois</small>
+                                <small class="d-block text-muted">Début : ${new Date(r.start_date).toLocaleDateString('fr-FR')}</small>
                             </div>
                         </div>
                     </div>
@@ -401,9 +434,10 @@ class RecurrentsController {
                 </div>
                 <div class="col-sm-6 mb-3">
                     <div class="input-group">
-                        <span class="input-group-text">Jour du mois</span>
-                        <input type="number" class="form-control" id="recurrent-jour" name="jour_mois" min="1" max="31" required>
+                        <span class="input-group-text">Date de début</span>
+                        <input type="date" class="form-control" id="recurrent-start-date" name="start_date" required>
                     </div>
+                    <div class="form-text">💡 Le jour sélectionné déterminera le jour de récurrence dans chaque période</div>
                 </div>
                 <div class="col-sm-6 mb-3">
                     <div class="input-group">
@@ -686,6 +720,73 @@ class RecurrentsController {
 
         } catch (error) {
             console.error('Error selecting account:', error);
+        }
+    }
+
+    /**
+     * Setup balance correction modal
+     */
+    setupBalanceModal() {
+        if (!this.currentAccount) {
+            console.warn('⚠️ setupBalanceModal called but currentAccount is not defined');
+            return;
+        }
+
+        const currentBalanceSpan = document.getElementById('currentBalance');
+        const newBalanceInput = document.getElementById('newBalance');
+
+        const currency = this.currentAccount.currency || 'EUR';
+        const balanceInStorage = this.currentAccount.balance || 0;
+        const currentBalance = RatchouUtils.currency.fromStorageUnit(balanceInStorage, currency);
+
+        // Display current balance
+        currentBalanceSpan.textContent = RatchouUtils.currency.formatWithCurrency(balanceInStorage, currency);
+
+        // Set appropriate decimal places for the input
+        const decimals = currency === 'BTC' ? 8 : 2;
+        newBalanceInput.value = currentBalance.toFixed(decimals);
+        newBalanceInput.step = currency === 'BTC' ? '0.00000001' : '0.01';
+        newBalanceInput.focus();
+        newBalanceInput.select();
+
+        console.log(`💰 Balance modal setup: ${currency} ${currentBalance.toFixed(decimals)} (storage: ${balanceInStorage})`);
+    }
+
+    /**
+     * Handle balance update
+     */
+    async handleBalanceUpdate() {
+        try {
+            const newBalanceInput = document.getElementById('newBalance');
+            const newBalanceDisplayUnit = parseFloat(newBalanceInput.value);
+
+            if (isNaN(newBalanceDisplayUnit)) {
+                alert('Veuillez saisir un montant valide');
+                return;
+            }
+
+            // Convert display unit to storage unit
+            const currency = this.currentAccount.currency || 'EUR';
+            const newBalanceStorage = RatchouUtils.currency.toStorageUnit(newBalanceDisplayUnit, currency);
+
+            // Use correctBalance which expects storage units
+            const result = await this.accountsModel.correctBalance(this.currentAccount.id, newBalanceStorage);
+
+            if (result.success) {
+                // Update local reference with new balance
+                this.currentAccount.balance = newBalanceStorage;
+                this.updateAccountDisplay();
+                bootstrap.Modal.getInstance(document.getElementById('balanceModal')).hide();
+
+                // Refresh data to reflect changes
+                await this.refreshData();
+            } else {
+                alert('Erreur: ' + result.message);
+            }
+
+        } catch (error) {
+            console.error('Error updating balance:', error);
+            alert('Erreur de mise à jour: ' + error.message);
         }
     }
 }

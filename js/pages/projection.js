@@ -611,13 +611,19 @@ class ProjectionController {
                 const newBalanceInput = document.getElementById('newBalance');
 
                 const currency = this.currentAccount.currency || 'EUR';
-                const balanceInDisplayUnit = RatchouUtils.currency.fromStorageUnit(this.currentAccount.balance, currency);
-                currentBalanceSpan.textContent = RatchouUtils.currency.formatWithCurrency(this.currentAccount.balance, currency);
+                const balanceInStorage = this.currentAccount.balance || 0;
+                const balanceInDisplayUnit = RatchouUtils.currency.fromStorageUnit(balanceInStorage, currency);
+                currentBalanceSpan.textContent = RatchouUtils.currency.formatWithCurrency(balanceInStorage, currency);
 
                 // Determine decimal places based on currency
                 const decimals = currency === 'BTC' ? 8 : 2;
                 newBalanceInput.value = balanceInDisplayUnit.toFixed(decimals);
+                newBalanceInput.step = currency === 'BTC' ? '0.00000001' : '0.01';
                 newBalanceInput.select();
+
+                console.log(`💰 Balance modal setup: ${currency} ${balanceInDisplayUnit.toFixed(decimals)} (storage: ${balanceInStorage})`);
+            } else {
+                console.warn('⚠️ setupBalanceModal called but currentAccount is not defined');
             }
         });
     }
