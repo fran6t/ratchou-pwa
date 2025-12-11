@@ -111,6 +111,26 @@
             color: #fff !important; /* White text on gray background for OTHER */
         }
 
+        /* Beta badge animation */
+        @keyframes pulse-glow {
+            0%, 100% {
+                box-shadow: 0 0 5px rgba(13, 110, 253, 0.5);
+            }
+            50% {
+                box-shadow: 0 0 15px rgba(13, 110, 253, 0.8);
+            }
+        }
+
+        #app-version-display .badge-beta {
+            animation: pulse-glow 2s ease-in-out infinite;
+            font-size: 0.7em;
+            vertical-align: middle;
+        }
+
+        #app-version-display {
+            transition: transform 0.1s ease;
+        }
+
         </style>
 
     <!-- Prevent dark mode flash -->

@@ -1,6 +1,6 @@
 # Ratchou
 
-**Version 1.0.8**
+**Version 1.0.9**
 
 # Gestion Dépenses Familiales — PWA/IndexedDB (100% Offline)
 

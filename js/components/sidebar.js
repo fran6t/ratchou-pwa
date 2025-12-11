@@ -11,7 +11,7 @@ export function generateSidebar() {
     // Déterminer le chemin des pages selon le dossier actuel
     const isInManageFolder = window.location.pathname.includes('/manage/');
     const managePath = isInManageFolder ? '' : 'manage/';
-    
+
     return `
     <!-- Sidebar Menu -->
     <div class="offcanvas offcanvas-end" tabindex="-1" id="sideMenu">
@@ -21,6 +21,7 @@ export function generateSidebar() {
         </div>
         <div class="offcanvas-body p-0">
             <div class="list-group list-group-flush">
+                <!-- Entrées principales -->
                 <a href="${managePath}comptes.html" class="list-group-item list-group-item-action">
                     🏦 <strong>Comptes</strong>
                     <small class="d-block text-muted">Gérer les comptes bancaires</small>
@@ -49,30 +50,106 @@ export function generateSidebar() {
                     💳 <strong>Types de paiement</strong>
                     <small class="d-block text-muted">Carte, espèces, virement...</small>
                 </a>
-                <a href="${managePath}export.html" class="list-group-item list-group-item-action">
-                    📤 <strong>Exporter les données</strong>
-                    <small class="d-block text-muted">JSON ou ZIP compressé</small>
-                </a>
-                <div class="list-group-item list-group-item-action" style="cursor: pointer;" data-bs-toggle="modal" data-bs-target="#accessCodeModal">
-                    🔐 <strong>Changer le code</strong>
-                    <small class="d-block text-muted">Modifier le code d'accès</small>
+
+                <!-- Sous-menu Système (collapse) -->
+                <div class="list-group-item list-group-item-action p-0">
+                    <button class="btn btn-link w-100 text-start text-decoration-none ps-3 pe-3 pt-2 pb-2 d-flex justify-content-between align-items-center"
+                            type="button"
+                            data-bs-toggle="collapse"
+                            data-bs-target="#systemSubmenu"
+                            aria-expanded="false"
+                            aria-controls="systemSubmenu"
+                            id="systemMenuToggle">
+                        <span>
+                            ⚙️ <strong>Système</strong>
+                            <small class="d-block text-muted">Configuration et gestion</small>
+                        </span>
+                        <i class="chevron-icon">▼</i>
+                    </button>
+
+                    <div class="collapse" id="systemSubmenu">
+                        <div class="list-group list-group-flush">
+                            <a href="${managePath}export.html" class="list-group-item list-group-item-action ps-5 border-0 bg-light">
+                                📤 <strong>Exporter les données</strong>
+                                <small class="d-block text-muted">JSON ou ZIP compressé</small>
+                            </a>
+                            <div class="list-group-item list-group-item-action ps-5 border-0 bg-light"
+                                 style="cursor: pointer;"
+                                 data-bs-toggle="modal"
+                                 data-bs-target="#accessCodeModal">
+                                🔐 <strong>Changer le code</strong>
+                                <small class="d-block text-muted">Modifier le code d'accès</small>
+                            </div>
+                            <a href="${managePath}parametres.html" class="list-group-item list-group-item-action ps-5 border-0 bg-light">
+                                ⚙️ <strong>Paramètres</strong>
+                                <small class="d-block text-muted">Configuration de l'app</small>
+                            </a>
+                            <div class="list-group-item list-group-item-action ps-5 border-0 bg-light text-danger"
+                                 style="cursor: pointer;"
+                                 data-bs-toggle="modal"
+                                 data-bs-target="#uninstallModal">
+                                🗑️ <strong>Désinstaller</strong>
+                                <small class="d-block text-muted">Supprimer toutes les données</small>
+                            </div>
+                        </div>
+                    </div>
                 </div>
+
+                <!-- Déconnexion -->
                 <div class="list-group-item list-group-item-action" style="cursor: pointer;" id="logoutBtn">
                     🚪 <strong>Déconnexion</strong>
                     <small class="d-block text-muted">Quitter l'application</small>
                 </div>
             </div>
         </div>
-    </div>`;
+    </div>
+
+    <!-- Styles pour le sous-menu collapse -->
+    <style>
+        /* Animation du chevron */
+        #systemMenuToggle .chevron-icon {
+            transition: transform 0.3s ease;
+            font-size: 0.8em;
+            color: var(--bs-secondary);
+        }
+
+        #systemMenuToggle[aria-expanded="true"] .chevron-icon {
+            transform: rotate(180deg);
+        }
+
+        /* Bouton du menu système */
+        #systemMenuToggle {
+            color: var(--bs-body-color) !important;
+            background: none;
+            border: none;
+        }
+
+        #systemMenuToggle:hover,
+        #systemMenuToggle:focus {
+            background-color: var(--bs-list-group-hover-bg);
+        }
+
+        /* Items du sous-menu */
+        #systemSubmenu .list-group-item {
+            transition: padding-left 0.2s ease;
+        }
+
+        #systemSubmenu .list-group-item:hover {
+            padding-left: 2.5rem !important;
+            background-color: var(--bs-tertiary-bg) !important;
+        }
+
+        /* Style sombre pour thème dark */
+        [data-bs-theme="dark"] #systemSubmenu .bg-light {
+            background-color: var(--bs-dark-bg-subtle) !important;
+        }
+    </style>`;
 }
 
 /**
  * Initialise les événements du sidebar
  */
 export async function initializeSidebarEvents() {
-    // Export is now handled by the modal in modals.js
-    // No need for direct export event handler anymore
-    
     // Event listener pour la déconnexion
     const logoutBtn = document.getElementById('logoutBtn');
     if (logoutBtn) {
@@ -86,6 +163,26 @@ export async function initializeSidebarEvents() {
 
             // Force a real page reload to properly close all connections
             window.location.href = indexPath;
+        });
+    }
+
+    // Mémoriser l'état du collapse Système dans localStorage
+    const systemSubmenu = document.getElementById('systemSubmenu');
+    if (systemSubmenu) {
+        // Restaurer l'état sauvegardé
+        const savedState = RatchouUtils.storage.get('sidebar_system_menu_expanded', false);
+        if (savedState) {
+            const bsCollapse = new bootstrap.Collapse(systemSubmenu, { toggle: false });
+            bsCollapse.show();
+        }
+
+        // Sauvegarder l'état lors des changements
+        systemSubmenu.addEventListener('shown.bs.collapse', () => {
+            RatchouUtils.storage.set('sidebar_system_menu_expanded', true);
+        });
+
+        systemSubmenu.addEventListener('hidden.bs.collapse', () => {
+            RatchouUtils.storage.set('sidebar_system_menu_expanded', false);
         });
     }
 }

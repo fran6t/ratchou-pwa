@@ -469,6 +469,82 @@ class RatchouUtils {
     };
 
     /**
+     * Feature flags utilities
+     */
+    static featureFlags = {
+        // Clé localStorage pour les flags
+        STORAGE_KEY: 'feature_flags',
+
+        // Feature flags disponibles
+        FLAGS: {
+            BETA_TESTER_MODE: 'beta_tester_mode'
+        },
+
+        /**
+         * Vérifier si un feature flag est activé
+         * @param {string} flagName - Nom du flag (utiliser FLAGS.*)
+         * @returns {boolean} True si le flag est activé
+         */
+        isEnabled(flagName) {
+            const flags = RatchouUtils.storage.get(this.STORAGE_KEY, {});
+            return flags[flagName] === true;
+        },
+
+        /**
+         * Activer un feature flag
+         * @param {string} flagName - Nom du flag
+         */
+        enable(flagName) {
+            const flags = RatchouUtils.storage.get(this.STORAGE_KEY, {});
+            flags[flagName] = true;
+            RatchouUtils.storage.set(this.STORAGE_KEY, flags);
+            RatchouUtils.debug.log(`Feature flag enabled: ${flagName}`);
+        },
+
+        /**
+         * Désactiver un feature flag
+         * @param {string} flagName - Nom du flag
+         */
+        disable(flagName) {
+            const flags = RatchouUtils.storage.get(this.STORAGE_KEY, {});
+            flags[flagName] = false;
+            RatchouUtils.storage.set(this.STORAGE_KEY, flags);
+            RatchouUtils.debug.log(`Feature flag disabled: ${flagName}`);
+        },
+
+        /**
+         * Toggle un feature flag (on/off)
+         * @param {string} flagName - Nom du flag
+         * @returns {boolean} Nouvel état du flag
+         */
+        toggle(flagName) {
+            const currentState = this.isEnabled(flagName);
+            if (currentState) {
+                this.disable(flagName);
+            } else {
+                this.enable(flagName);
+            }
+            return !currentState;
+        },
+
+        /**
+         * Obtenir tous les flags actifs
+         * @returns {Object} Objet avec tous les flags et leurs états
+         */
+        getAll() {
+            return RatchouUtils.storage.get(this.STORAGE_KEY, {});
+        },
+
+        /**
+         * Réinitialiser tous les flags
+         */
+        resetAll() {
+            RatchouUtils.storage.set(this.STORAGE_KEY, {});
+            RatchouUtils.debug.log('All feature flags reset');
+        }
+    };
+
+    /**
      * Local storage utilities
      */
     static storage = {

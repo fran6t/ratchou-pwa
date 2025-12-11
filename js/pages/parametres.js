@@ -7,6 +7,11 @@ class SettingsController {
     constructor() {
         this.isInitialized = false;
         this.loadingOverlay = null;
+
+        // Easter egg state
+        this.clickCount = 0;
+        this.clickTimer = null;
+        this.lastClickTime = 0;
     }
 
     /**
@@ -89,6 +94,9 @@ class SettingsController {
 
         // Theme management
         this.setupThemeControls();
+
+        // Beta tester easter egg
+        this.setupBetaTesterEasterEgg();
     }
 
     /**
@@ -152,11 +160,90 @@ class SettingsController {
     }
 
     /**
+     * Setup easter egg for beta tester mode
+     * 4 rapid clicks on version text activates/deactivates beta mode
+     */
+    setupBetaTesterEasterEgg() {
+        const versionElement = document.getElementById('app-version-display');
+        if (!versionElement) {
+            console.warn('Version element not found for easter egg');
+            return;
+        }
+
+        versionElement.style.cursor = 'pointer';
+        versionElement.style.userSelect = 'none';
+
+        versionElement.addEventListener('click', (e) => {
+            const now = Date.now();
+            const timeSinceLastClick = now - this.lastClickTime;
+
+            // Reset si plus d'1 seconde depuis le dernier clic
+            if (timeSinceLastClick > 1000) {
+                this.clickCount = 0;
+            }
+
+            this.clickCount++;
+            this.lastClickTime = now;
+
+            // Animation visuelle de feedback
+            versionElement.style.transform = 'scale(0.95)';
+            setTimeout(() => {
+                versionElement.style.transform = 'scale(1)';
+            }, 100);
+
+            // Si 4 clics rapides
+            if (this.clickCount >= 4) {
+                this.toggleBetaTesterMode();
+                this.clickCount = 0;
+            }
+
+            // Reset après 1 seconde d'inactivité
+            clearTimeout(this.clickTimer);
+            this.clickTimer = setTimeout(() => {
+                this.clickCount = 0;
+            }, 1000);
+        });
+
+        console.log('Beta tester easter egg initialized');
+    }
+
+    /**
+     * Toggle beta tester mode on/off
+     */
+    toggleBetaTesterMode() {
+        if (typeof RatchouUtils === 'undefined' || !RatchouUtils.featureFlags) {
+            console.error('RatchouUtils.featureFlags not available');
+            return;
+        }
+
+        const newState = RatchouUtils.featureFlags.toggle(
+            RatchouUtils.featureFlags.FLAGS.BETA_TESTER_MODE
+        );
+
+        // Vibration si supportée
+        if ('vibrate' in navigator) {
+            navigator.vibrate(200);
+        }
+
+        // Afficher toast avec le nouvel état
+        const message = newState
+            ? '🚀 Mode bêta-testeur activé !'
+            : '✅ Mode bêta-testeur désactivé';
+
+        RatchouUtils.ui.toast(message, newState ? 'info' : 'success', 3000);
+
+        // Mettre à jour l'affichage du badge immédiatement
+        this.updateVersionDisplay();
+
+        console.log(`Beta tester mode: ${newState ? 'ON' : 'OFF'}`);
+    }
+
+    /**
      * Show success message
      */
     showSuccess(message) {
-        if (typeof RatchouUtils !== 'undefined' && RatchouUtils.showToast) {
-            RatchouUtils.showToast(message, 'success');
+        if (typeof RatchouUtils !== 'undefined' && RatchouUtils.ui) {
+            RatchouUtils.ui.toast(message, 'success');
         } else {
             console.log('Success:', message);
         }
@@ -240,15 +327,25 @@ class SettingsController {
             // Get version info with environment
             const versionInfo = await RatchouUtils.version.getVersionWithEnvironment();
 
-            // Create version display with badge
-            const badgeClass = `badge bg-${versionInfo.environment.color}`;
+            // Check if beta tester mode is enabled
+            const isBetaMode = RatchouUtils.featureFlags &&
+                RatchouUtils.featureFlags.isEnabled(
+                    RatchouUtils.featureFlags.FLAGS.BETA_TESTER_MODE
+                );
+
+            // Create version display with badges
+            const envBadgeClass = `badge bg-${versionInfo.environment.color}`;
+            const betaBadge = isBetaMode
+                ? '<span class="badge bg-info badge-beta ms-2">BETA</span>'
+                : '';
+
             const versionHTML = `
                 Ratchou v${versionInfo.version}
-                <span class="${badgeClass} ms-2">${versionInfo.environment.name}</span>
+                <span class="${envBadgeClass} ms-2">${versionInfo.environment.name}</span>${betaBadge}
             `;
 
             versionElement.innerHTML = versionHTML;
-            console.log(`Version display updated to: ${versionInfo.fullVersion}`);
+            console.log(`Version display updated: ${versionInfo.fullVersion}${isBetaMode ? ' [BETA MODE]' : ''}`);
 
         } catch (error) {
             console.error('Error updating version display:', error);
