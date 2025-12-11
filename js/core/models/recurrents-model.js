@@ -455,6 +455,29 @@ class RecurringExpensesModel extends BaseModel {
     }
 
 
+    /**
+     * Calcule une start_date cohérente avec day_of_month
+     * Règle : Prend le jour spécifié dans le mois courant (passé ou futur)
+     *
+     * Exemples (aujourd'hui = 11/12/2025) :
+     * - day_of_month = 5  → start_date = 05/12/2025 (mois courant, passé)
+     * - day_of_month = 15 → start_date = 15/12/2025 (mois courant, futur)
+     * - day_of_month = 28 → start_date = 28/12/2025 (mois courant, futur)
+     *
+     * Note : Si start_date est dans le futur, calculateDueOccurrences() ne créera
+     * aucune occurrence tant que cette date n'est pas atteinte.
+     *
+     * @param {number} dayOfMonth - Jour du mois (1-31)
+     * @returns {string} Date au format YYYY-MM-DD
+     */
+    calculateStartDate(dayOfMonth) {
+        const today = new Date();
+        const startDate = new Date(today.getFullYear(), today.getMonth(), dayOfMonth);
+        startDate.setHours(0, 0, 0, 0);
+
+        return startDate.toISOString().split('T')[0];
+    }
+
     async createDefaults(principalAccount) {
         if (!principalAccount) {
             console.warn('No principal account provided, cannot create default recurring expenses');
@@ -487,11 +510,6 @@ class RecurringExpensesModel extends BaseModel {
 
             const defaults = [];
 
-            // Date de début : début du mois actuel
-            const today = new Date();
-            const startDate = new Date(today.getFullYear(), today.getMonth(), 1);
-            const startDateString = startDate.toISOString().split('T')[0]; // YYYY-MM-DD
-
             // Salaire (revenus positifs)
             if (principalAccount && salaryCategory && employerPayee && defaultExpenseType) {
                 defaults.push({
@@ -503,7 +521,7 @@ class RecurringExpensesModel extends BaseModel {
                     expense_type_id: defaultExpenseType.id,
                     day_of_month: 28,
                     frequency: 1,
-                    start_date: startDateString,
+                    start_date: this.calculateStartDate(28), // Cohérent avec day_of_month
                     is_active: 1
                 });
             }
@@ -519,7 +537,7 @@ class RecurringExpensesModel extends BaseModel {
                     expense_type_id: defaultExpenseType.id,
                     day_of_month: 5,
                     frequency: 1,
-                    start_date: startDateString,
+                    start_date: this.calculateStartDate(5), // Cohérent avec day_of_month
                     is_active: 1
                 });
             }
@@ -550,6 +568,57 @@ class RecurringExpensesModel extends BaseModel {
         } catch (error) {
             console.error('Error creating default recurring expenses:', error);
             return RatchouUtils.error.handleIndexedDBError(error, 'création des dépenses fixes par défaut');
+        }
+    }
+
+    /**
+     * Corrige les start_dates invalides ou incohérentes avec day_of_month
+     * À appeler lors de l'initialisation de l'app ou manuellement
+     *
+     * @returns {Promise<Object>} { success, fixed, total }
+     */
+    async fixInvalidStartDates() {
+        try {
+            const allExpenses = await this.getAll();
+            let fixedCount = 0;
+
+            for (const expense of allExpenses) {
+                let needsUpdate = false;
+                const updates = {};
+
+                // Cas 1 : start_date manquante
+                if (!expense.start_date) {
+                    updates.start_date = this.calculateStartDate(expense.day_of_month);
+                    needsUpdate = true;
+                }
+                // Cas 2 : start_date existe mais incohérente avec day_of_month
+                else {
+                    const startDate = new Date(expense.start_date);
+                    const dayFromStartDate = startDate.getDate();
+
+                    if (dayFromStartDate !== expense.day_of_month) {
+                        // Recalculer start_date à partir de day_of_month
+                        updates.start_date = this.calculateStartDate(expense.day_of_month);
+                        needsUpdate = true;
+                    }
+                }
+
+                if (needsUpdate) {
+                    await this.update(expense.id, updates);
+                    fixedCount++;
+                    console.log(`🔧 Fixed start_date for "${expense.libelle}": ${updates.start_date}`);
+                }
+            }
+
+            return {
+                success: true,
+                fixed: fixedCount,
+                total: allExpenses.length,
+                message: `${fixedCount}/${allExpenses.length} dépenses récurrentes corrigées`
+            };
+        } catch (error) {
+            console.error('Error fixing invalid start_dates:', error);
+            return RatchouUtils.error.handleIndexedDBError(error, 'correction des start_dates');
         }
     }
 }

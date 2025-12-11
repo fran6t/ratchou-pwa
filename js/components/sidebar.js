@@ -83,7 +83,9 @@ export async function initializeSidebarEvents() {
             // Détecter si on est dans le dossier manage/ pour ajuster le chemin
             const isInManageFolder = window.location.pathname.includes('/manage/');
             const indexPath = isInManageFolder ? '../index.html' : 'index.html';
-            location.replace(indexPath);
+
+            // Force a real page reload to properly close all connections
+            window.location.href = indexPath;
         });
     }
 }

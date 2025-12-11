@@ -208,12 +208,14 @@ class MainController {
             // Set the device ID in storage so all subsequent DB operations can use it.
             RatchouUtils.device.setDeviceId(deviceId);
 
-            await window.ratchouApp.initialize({ skipDefaults: true });
-
             if (file) {
+                // Import will call initializeStructure() which recreates everything
+                // No need to initialize() first - it would create a connection conflict
                 const result = await importData(file, (p, m) => this.updateProgress(p, m), deviceId, accessCode);
                 if (!result.success) throw new Error(result.message);
             } else {
+                // For new user setup without import, we need to initialize first
+                await window.ratchouApp.initialize({ skipDefaults: true });
                 this.updateProgress(20, 'Création du nouvel utilisateur...');
                 await window.ratchouApp.db.put('UTILISATEUR', { code_acces: accessCode, device_id: deviceId });
                 this.updateProgress(50, 'Création des données par défaut...');

@@ -64,6 +64,12 @@ class RatchouApp {
                 RatchouUtils.debug.log('First run déjà fait');
             }
 
+            // Fix invalid start_dates in recurring expenses (silent correction)
+            const fixResult = await this.models.recurringExpenses.fixInvalidStartDates();
+            if (fixResult.fixed > 0) {
+                console.log(`✅ ${fixResult.message}`);
+            }
+
             this.isInitialized = true;
 
             RatchouUtils.debug.log('Ratchou application initialized successfully');
@@ -85,20 +91,23 @@ class RatchouApp {
             RatchouUtils.debug.log('Initializing database structure for import...');
             console.log('🏗️ Phase 1: Initializing database structure...');
 
+            // Close any existing connection before recreating the database
+            if (this.db && this.db.db) {
+                console.log('🔌 Closing existing connection before recreating database');
+                this.db.close();
+            }
+
             // 1. Recreate database completely (deletes everything and recreates structure)
+            // Note: recreateDatabase() already calls init() internally
             await this.db.recreateDatabase();
-            console.log('✅ Database recreated');
+            console.log('✅ Database recreated and reinitialized');
 
-            // 2. Initialize IndexedDB connection and create stores
-            await this.db.init();
-            console.log('✅ Database structure initialized');
-
-            // 3. Initialize authentication system
+            // 2. Initialize authentication system
             this.auth = new RatchouAuth(this.db);
             await this.auth.initialize();
             console.log('✅ Authentication system initialized');
 
-            // 4. Initialize models with clean database connection
+            // 3. Initialize models with clean database connection
             this.models = {
                 accounts: new AccountsModel(this.db),
                 categories: new CategoriesModel(this.db),
@@ -165,6 +174,13 @@ class RatchouApp {
 
     logout() {
         this.requireInitialized();
+
+        // Close IndexedDB connection before logout to prevent issues on restore
+        if (this.db && this.db.db) {
+            console.log('🔌 Closing IndexedDB connection before logout');
+            this.db.close();
+        }
+
         return this.auth.logout();
     }
 
