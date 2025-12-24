@@ -116,6 +116,28 @@
                     </div>
                 </div>
 
+                <!-- Gestion avancée du cache -->
+                <div class="card mb-4">
+                    <div class="card-header bg-warning">
+                        <h5 class="mb-0">🔬 Gestion avancée du cache</h5>
+                    </div>
+                    <div class="card-body">
+                        <p class="text-muted">
+                            Ces outils sont réservés aux développeurs ou pour un dépannage avancé.
+                            Une mauvaise utilisation peut nécessiter de réinstaller l'application.
+                        </p>
+                        <div class="text-center">
+                            <button class="btn btn-danger" id="clear-caches-btn">
+                                <i class="bi bi-trash"></i> Forcer l'effacement de tous les caches
+                            </button>
+                            <button class="btn btn-secondary" id="show-cached-files-btn">
+                                <i class="bi bi-list-ul"></i> Lister les fichiers en cache
+                            </button>
+                        </div>
+                        <div id="cached-files-container" class="mt-4"></div>
+                    </div>
+                </div>
+
                 <!-- Guide iOS spécifique (caché par défaut) -->
                 <div class="card mb-4 d-none" id="iosGuide">
                     <div class="card-header bg-info text-white">
@@ -209,6 +231,7 @@
                 showAccountInfo: false,
                 logoLink: '../dashboard.html'
             });
+            await ComponentLoader.loadSidebar();
 
             // Initialize RatchouApp for version info
             try {

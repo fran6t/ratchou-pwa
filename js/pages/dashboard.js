@@ -261,6 +261,23 @@ class DashboardController {
                 document.getElementById('newPayeeName').focus();
             });
         }
+
+        // Sync event listener - auto-refresh when data changes via sync
+        window.addEventListener('sync-data-changed', async (event) => {
+            const { storeName, status } = event.detail;
+
+            // Rafraîchir les transactions si c'est un mouvement
+            if (storeName === 'MOUVEMENTS') {
+                console.log(`🔄 Auto-refresh: ${status} in MOUVEMENTS`);
+                await this.refreshTransactions();
+            }
+
+            // Rafraîchir le solde si c'est un compte
+            if (storeName === 'COMPTES') {
+                console.log(`🔄 Auto-refresh: ${status} in COMPTES`);
+                await this.refreshAccountDisplay();
+            }
+        });
     }
 
     /**
@@ -269,26 +286,59 @@ class DashboardController {
     async loadDashboardData() {
         try {
             this.showLoading('Chargement des données...');
-            
+
             const dashboardData = await ratchouApp.getDashboardData();
-            
+
             this.currentAccount = dashboardData.currentAccount;
             this.allAccounts = dashboardData.allAccounts;
             this.recentTransactions = dashboardData.recentTransactions;
-            
+
             // Load form data
             await this.loadFormData();
-            
+
             // Update UI
             this.updateAccountDisplay();
             this.updateTransactionsTable();
             this.toggleDuplicateCheckbox(); // Initial check
-            
+
         } catch (error) {
             console.error('Error loading dashboard data:', error);
             this.showError('Erreur de chargement: ' + error.message);
         } finally {
             this.hideLoading();
+        }
+    }
+
+    /**
+     * Refresh transactions (called after sync)
+     */
+    async refreshTransactions() {
+        try {
+            if (!this.currentAccount) return;
+
+            const transactions = await ratchouApp.models.transactions.getRecentByAccount(this.currentAccount.id, 20);
+            this.recentTransactions = await ratchouApp.models.transactions.getEnriched(transactions);
+            this.updateTransactionsTable();
+
+            // Refresh account balance too since transactions affect it
+            await this.refreshAccountBalance();
+        } catch (error) {
+            console.error('Error refreshing transactions:', error);
+        }
+    }
+
+    /**
+     * Refresh account display (called after sync)
+     */
+    async refreshAccountDisplay() {
+        try {
+            const updatedAccount = await ratchouApp.models.accounts.getById(this.currentAccount.id);
+            if (updatedAccount) {
+                this.currentAccount = updatedAccount;
+                this.updateAccountDisplay();
+            }
+        } catch (error) {
+            console.error('Error refreshing account display:', error);
         }
     }
 

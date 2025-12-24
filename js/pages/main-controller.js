@@ -10,24 +10,68 @@ class MainController {
         // Login Form
         this.loginForm = document.getElementById('loginForm');
         this.accessCodeLoginInput = document.getElementById('accessCodeLogin');
-        this.showSetupBtn = document.getElementById('showSetupBtn');
         this.loginError = document.getElementById('loginError');
+        this.loginResetCheckbox = document.getElementById('loginResetCheckbox');
+        this.loginFileCheckbox = document.getElementById('loginFileCheckbox');
+        this.loginFileContainer = document.getElementById('loginFileContainer');
+        this.loginImportFile = document.getElementById('loginImportFile');
+        this.loginSecurityCodeContainer = document.getElementById('loginSecurityCodeContainer');
+        this.loginSecurityCode = document.getElementById('loginSecurityCode');
+        this.loginWarning = document.getElementById('loginWarning');
+        this.loginBtnText = document.getElementById('loginBtnText');
 
         // Setup Form
         this.setupForm = document.getElementById('setupForm');
         this.accessCodeSetupInput = document.getElementById('accessCodeSetup');
         this.deviceIdInput = document.getElementById('deviceId');
-        this.hasRestoreFileCheckbox = document.getElementById('hasRestoreFile');
-        this.restoreFileContainer = document.getElementById('restoreFileContainer');
-        this.importFileInput = document.getElementById('importFile');
+        this.setupFileCheckbox = document.getElementById('setupFileCheckbox');
+        this.setupFileContainer = document.getElementById('setupFileContainer');
+        this.setupImportFile = document.getElementById('setupImportFile');
+        this.setupSecurityCodeContainer = document.getElementById('setupSecurityCodeContainer');
+        this.setupSecurityCode = document.getElementById('setupSecurityCode');
         this.setupExecuteBtn = document.getElementById('setupExecuteBtn');
         this.showLoginBtn = document.getElementById('showLoginBtn');
         this.setupError = document.getElementById('setupError');
-        
+
         // Status Area
         this.progressBar = this.statusContainer.querySelector('.progress-bar');
         this.statusMessage = document.getElementById('status-message');
         this.continueBtn = document.getElementById('continueBtn');
+    }
+
+    /**
+     * Détecte automatiquement le type de fichier (pairing ou restauration)
+     * @param {File} file - Fichier uploadé
+     * @returns {Promise<'pairing'|'restore'|'unknown'>}
+     */
+    async detectFileType(file) {
+        try {
+            if (file.name.endsWith('.json')) {
+                // Fichier JSON simple = restauration
+                return 'restore';
+            }
+
+            if (file.name.endsWith('.zip')) {
+                const JSZip = (await import('https://cdn.jsdelivr.net/npm/jszip@3.10.1/+esm')).default;
+                const zip = await JSZip.loadAsync(file);
+
+                // Lire metadata.json
+                const metadataFile = zip.file('metadata.json');
+                if (!metadataFile) {
+                    return 'unknown';
+                }
+
+                const metadata = JSON.parse(await metadataFile.async('text'));
+
+                // Détecter si c'est un fichier d'appairage
+                return metadata.isPairingFile ? 'pairing' : 'restore';
+            }
+
+            return 'unknown';
+        } catch (error) {
+            console.error('Erreur détection type fichier:', error);
+            return 'unknown';
+        }
     }
 
     async init() {
@@ -65,7 +109,7 @@ class MainController {
     }
 
     setupEventListeners() {
-        this.showSetupBtn.addEventListener('click', () => this.showSetup(true));
+        // Formulaires
         this.showLoginBtn.addEventListener('click', () => this.showLogin());
         this.setupForm.addEventListener('submit', e => {
             e.preventDefault();
@@ -78,26 +122,56 @@ class MainController {
         this.continueBtn.addEventListener('click', () => {
             window.location.replace('dashboard.html');
         });
-        
-        // Toggle restore file input
-        this.hasRestoreFileCheckbox.addEventListener('change', () => {
-            this.toggleRestoreFileInput();
+
+        // === LOGIN CHECKBOXES ===
+
+        // Toggle mutuel entre reset et fichier
+        this.loginResetCheckbox.addEventListener('change', () => {
+            if (this.loginResetCheckbox.checked) {
+                this.loginFileCheckbox.checked = false;
+            }
+            this.toggleLoginOptions();
         });
-        
-        // Auto-login when 4 digits are entered
+
+        this.loginFileCheckbox.addEventListener('change', () => {
+            if (this.loginFileCheckbox.checked) {
+                this.loginResetCheckbox.checked = false;
+            }
+            this.toggleLoginOptions();
+        });
+
+        // Détection automatique du type de fichier login
+        this.loginImportFile.addEventListener('change', async (e) => {
+            await this.handleLoginFileSelection(e.target.files[0]);
+        });
+
+        // === SETUP CHECKBOX ===
+
+        this.setupFileCheckbox.addEventListener('change', () => {
+            this.toggleSetupFileInputs();
+        });
+
+        // Détection automatique du type de fichier setup
+        this.setupImportFile.addEventListener('change', async (e) => {
+            await this.handleSetupFileSelection(e.target.files[0]);
+        });
+
+        // === AUTO-LOGIN & AUTO-FOCUS ===
+
+        // Auto-login désactivé si checkbox cochée
         this.accessCodeLoginInput.addEventListener('input', () => {
             const code = this.accessCodeLoginInput.value;
-            if (code.length === 4 && /^\d{4}$/.test(code)) {
-                // Small delay to allow user to see the input
+            const hasOptions = this.loginResetCheckbox.checked || this.loginFileCheckbox.checked;
+
+            if (code.length === 4 && /^\d{4}$/.test(code) && !hasOptions) {
                 setTimeout(() => this.handleLogin(), 300);
             }
         });
-        
+
         // Auto-focus to device name when 4 digits are entered in setup
         this.accessCodeSetupInput.addEventListener('input', () => {
             const code = this.accessCodeSetupInput.value;
             if (code.length === 4 && /^\d{4}$/.test(code)) {
-                // Move focus to device input
                 this.deviceIdInput.focus();
             }
         });
@@ -140,47 +214,348 @@ class MainController {
         this.statusMessage.textContent = message;
     }
 
-    toggleRestoreFileInput() {
-        if (this.hasRestoreFileCheckbox.checked) {
-            this.restoreFileContainer.classList.remove('d-none');
+    /**
+     * Gère la sélection de fichier dans le login avec détection automatique
+     */
+    async handleLoginFileSelection(file) {
+        if (!file) {
+            this.loginSecurityCodeContainer.classList.add('d-none');
+            this.loginSecurityCode.value = '';
+            return;
+        }
+
+        const fileType = await this.detectFileType(file);
+
+        if (fileType === 'pairing') {
+            // Afficher le champ code de sécurité
+            this.loginSecurityCodeContainer.classList.remove('d-none');
+            this.loginSecurityCode.focus();
         } else {
-            this.restoreFileContainer.classList.add('d-none');
-            // Clear the file input when hiding
-            this.importFileInput.value = '';
+            // Masquer le champ code de sécurité
+            this.loginSecurityCodeContainer.classList.add('d-none');
+            this.loginSecurityCode.value = '';
         }
     }
 
+    /**
+     * Gère la sélection de fichier dans le setup avec détection automatique
+     */
+    async handleSetupFileSelection(file) {
+        if (!file) {
+            this.setupSecurityCodeContainer.classList.add('d-none');
+            this.setupSecurityCode.value = '';
+            return;
+        }
+
+        const fileType = await this.detectFileType(file);
+
+        if (fileType === 'pairing') {
+            this.setupSecurityCodeContainer.classList.remove('d-none');
+            this.setupSecurityCode.focus();
+        } else {
+            this.setupSecurityCodeContainer.classList.add('d-none');
+            this.setupSecurityCode.value = '';
+        }
+    }
+
+    /**
+     * Gère l'affichage des options de login selon les checkboxes
+     */
+    toggleLoginOptions() {
+        const resetChecked = this.loginResetCheckbox.checked;
+        const fileChecked = this.loginFileCheckbox.checked;
+        const anyChecked = resetChecked || fileChecked;
+
+        // Afficher input fichier si checkbox fichier cochée
+        if (fileChecked) {
+            this.loginFileContainer.classList.remove('d-none');
+        } else {
+            this.loginFileContainer.classList.add('d-none');
+            this.loginImportFile.value = '';
+            this.loginSecurityCodeContainer.classList.add('d-none');
+            this.loginSecurityCode.value = '';
+        }
+
+        // Afficher avertissement si opération destructive
+        if (anyChecked) {
+            this.loginWarning.classList.remove('d-none');
+        } else {
+            this.loginWarning.classList.add('d-none');
+        }
+
+        // Adapter texte du bouton
+        if (resetChecked) {
+            this.loginBtnText.textContent = 'Réinitialiser';
+        } else if (fileChecked) {
+            this.loginBtnText.textContent = 'Restaurer / Installer';
+        } else {
+            this.loginBtnText.textContent = 'Se connecter';
+        }
+    }
+
+    /**
+     * Gère l'affichage des champs setup selon checkbox
+     */
+    toggleSetupFileInputs() {
+        const fileChecked = this.setupFileCheckbox.checked;
+
+        if (fileChecked) {
+            this.setupFileContainer.classList.remove('d-none');
+        } else {
+            this.setupFileContainer.classList.add('d-none');
+            this.setupImportFile.value = '';
+            this.setupSecurityCodeContainer.classList.add('d-none');
+            this.setupSecurityCode.value = '';
+        }
+    }
+
+    /**
+     * Valide le code d'accès sans créer de session
+     */
+    async validateAccessCode(accessCode) {
+        try {
+            const userData = await window.ratchouApp.db.get('UTILISATEUR', accessCode);
+            return !!userData;
+        } catch (error) {
+            return false;
+        }
+    }
+
+    /**
+     * Gère le login avec routing selon les options sélectionnées
+     */
     async handleLogin() {
         this.hideErrors();
         const accessCode = this.accessCodeLoginInput.value;
+
+        // Validation code d'accès
         if (!/^\d{4}$/.test(accessCode)) {
             this.showError('login', 'Le code doit contenir 4 chiffres.');
             return;
         }
-        
-        // Show loading state on button
+
+        try {
+            // ÉTAPE 1 : Valider le code d'accès
+            const isValid = await this.validateAccessCode(accessCode);
+            if (!isValid) {
+                this.showError('login', 'Code d\'accès incorrect.');
+                this.accessCodeLoginInput.value = '';
+                this.accessCodeLoginInput.focus();
+                return;
+            }
+
+            // ÉTAPE 2 : Router selon l'opération
+            const resetChecked = this.loginResetCheckbox.checked;
+            const fileChecked = this.loginFileCheckbox.checked;
+
+            if (resetChecked) {
+                // CAS 2b : Réinitialisation complète
+                await this.handleResetApp(accessCode);
+            } else if (fileChecked) {
+                // CAS 2c/2d : Restauration ou Appairage (détection auto)
+                await this.handleFileImportFromLogin(accessCode);
+            } else {
+                // CAS 2a : Connexion normale
+                await this.handleNormalLogin(accessCode);
+            }
+
+        } catch (error) {
+            console.error('Login error:', error);
+            this.showError('login', error.message || 'Une erreur est survenue');
+        }
+    }
+
+    /**
+     * CAS 2a : Connexion normale
+     */
+    async handleNormalLogin(accessCode) {
         const loginBtn = document.getElementById('loginBtn');
         const originalText = loginBtn.innerHTML;
         loginBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Connexion...';
         loginBtn.disabled = true;
-        
-        try {
-            const result = await ratchouApp.login(accessCode);
-            if (result.success) {
-                // Increment usage count on successful login
-                this.incrementUsageCount();
 
-                // Check backup status before redirecting
+        try {
+            const result = await window.ratchouApp.login(accessCode);
+            if (result.success) {
+                this.incrementUsageCount();
                 this.checkBackupStatusAfterLogin();
             } else {
-                this.showError('login', 'Code d\'accès incorrect.');
-                this.accessCodeLoginInput.value = '';
-                this.accessCodeLoginInput.focus();
+                throw new Error('Échec de connexion');
             }
         } finally {
-            // Reset button state
             loginBtn.innerHTML = originalText;
             loginBtn.disabled = false;
+        }
+    }
+
+    /**
+     * CAS 2b : Réinitialisation complète
+     */
+    async handleResetApp(accessCode) {
+        const confirm = window.confirm(
+            "⚠️ Réinitialisation complète\n\n" +
+            "Cette opération va supprimer TOUTES vos données.\n" +
+            "Cette action est IRRÉVERSIBLE.\n\n" +
+            "Continuer ?"
+        );
+
+        if (!confirm) return;
+
+        this.loginContainer.classList.add('container-hidden');
+        this.updateProgress(5, 'Réinitialisation...');
+
+        try {
+            const { uninstallApp } = await import('../components/import-export.js');
+            const result = await uninstallApp((p, m) => this.updateProgress(p, m));
+
+            if (!result.success) {
+                throw new Error(result.message);
+            }
+
+            this.updateProgress(100, 'Réinitialisation terminée !');
+            this.progressBar.classList.remove('progress-bar-animated', 'progress-bar-striped');
+            this.progressBar.classList.add('bg-success');
+            this.statusMessage.innerHTML = 'La page va se recharger...';
+
+            setTimeout(() => window.location.reload(), 3000);
+
+        } catch (error) {
+            console.error('Reset error:', error);
+            this.showError('login', error.message);
+            this.showLogin();
+        }
+    }
+
+    /**
+     * CAS 2c/2d : Router vers restore ou pairing selon détection
+     */
+    async handleFileImportFromLogin(accessCode) {
+        const file = this.loginImportFile.files[0];
+
+        if (!file) {
+            this.showError('login', 'Veuillez sélectionner un fichier.');
+            return;
+        }
+
+        // Détecter le type de fichier
+        const fileType = await this.detectFileType(file);
+
+        if (fileType === 'pairing') {
+            // CAS 2d : Appairage
+            await this.handlePairingFromLogin(accessCode, file);
+        } else if (fileType === 'restore') {
+            // CAS 2c : Restauration
+            await this.handleRestoreFromLogin(accessCode, file);
+        } else {
+            this.showError('login', 'Type de fichier non reconnu.');
+        }
+    }
+
+    /**
+     * CAS 2d : Installation fichier d'appairage
+     */
+    async handlePairingFromLogin(accessCode, file) {
+        const securityCode = this.loginSecurityCode.value;
+
+        // Validation code de sécurité
+        if (!/^\d{4}$/.test(securityCode)) {
+            this.showError('login', 'Le code de sécurité doit faire 4 chiffres.');
+            return;
+        }
+
+        // Confirmation
+        const confirm = window.confirm(
+            "⚠️ Installation fichier d'appairage\n\n" +
+            "Cette opération va :\n" +
+            "• Supprimer toutes vos données actuelles\n" +
+            "• Importer les données du maître\n" +
+            "• Configurer la synchronisation\n\n" +
+            "Continuer ?"
+        );
+
+        if (!confirm) return;
+
+        // Import
+        this.loginContainer.classList.add('container-hidden');
+        this.updateProgress(5, 'Installation en cours...');
+
+        try {
+            const userData = await window.ratchouApp.db.get('UTILISATEUR', accessCode);
+            const deviceId = userData?.device_id || RatchouUtils.device.generateDeviceId();
+
+            const { importPairingFile } = await import('../components/import-export.js');
+            const result = await importPairingFile(
+                file,
+                securityCode,
+                (p, m) => this.updateProgress(p, m),
+                deviceId,
+                accessCode
+            );
+
+            if (!result.success) {
+                throw new Error(result.message);
+            }
+
+            this.updateProgress(100, 'Installation terminée !');
+            this.progressBar.classList.remove('progress-bar-animated', 'progress-bar-striped');
+            this.progressBar.classList.add('bg-success');
+            this.statusMessage.innerHTML = 'Synchronisation configurée.<br>Redirection...';
+
+            setTimeout(() => window.location.replace('dashboard.html'), 2000);
+
+        } catch (error) {
+            console.error('Pairing error:', error);
+            this.showError('login', error.message);
+            this.showLogin();
+        }
+    }
+
+    /**
+     * CAS 2c : Restauration depuis sauvegarde
+     */
+    async handleRestoreFromLogin(accessCode, file) {
+        // Confirmation
+        const confirm = window.confirm(
+            "⚠️ Restauration depuis sauvegarde\n\n" +
+            "Cette opération va :\n" +
+            "• Supprimer toutes vos données actuelles\n" +
+            "• Importer les données du fichier\n\n" +
+            "Continuer ?"
+        );
+
+        if (!confirm) return;
+
+        // Import
+        this.loginContainer.classList.add('container-hidden');
+        this.updateProgress(5, 'Restauration en cours...');
+
+        try {
+            const userData = await window.ratchouApp.db.get('UTILISATEUR', accessCode);
+            const deviceId = userData?.device_id || RatchouUtils.device.generateDeviceId();
+
+            const { importData } = await import('../components/import-export.js');
+            const result = await importData(
+                file,
+                (p, m) => this.updateProgress(p, m),
+                deviceId,
+                accessCode
+            );
+
+            if (!result.success) {
+                throw new Error(result.message);
+            }
+
+            this.updateProgress(100, 'Restauration terminée !');
+            this.progressBar.classList.remove('progress-bar-animated', 'progress-bar-striped');
+            this.progressBar.classList.add('bg-success');
+            this.statusMessage.innerHTML = 'Données restaurées.<br>Redirection...';
+
+            setTimeout(() => window.location.replace('dashboard.html'), 2000);
+
+        } catch (error) {
+            console.error('Restore error:', error);
+            this.showError('login', error.message);
+            this.showLogin();
         }
     }
 
@@ -188,14 +563,25 @@ class MainController {
         this.hideErrors();
         const accessCode = this.accessCodeSetupInput.value;
         const deviceId = this.deviceIdInput.value.trim();
-        const file = this.importFileInput.files[0];
+        const file = this.setupImportFile.files[0];
 
+        // Validation
         if (!/^\d{4}$/.test(accessCode)) {
             this.showError('setup', 'Le code d\'accès doit faire 4 chiffres.');
             return;
         }
         if (!deviceId) {
             this.showError('setup', 'Le nom de l\'appareil est requis.');
+            return;
+        }
+
+        // Détection automatique du type de fichier
+        const fileType = file ? await this.detectFileType(file) : null;
+        const securityCode = fileType === 'pairing' ? this.setupSecurityCode.value : null;
+
+        // Validation code sécurité si pairing détecté
+        if (fileType === 'pairing' && !/^\d{4}$/.test(securityCode)) {
+            this.showError('setup', 'Le code de sécurité doit faire 4 chiffres.');
             return;
         }
 
@@ -208,13 +594,34 @@ class MainController {
             // Set the device ID in storage so all subsequent DB operations can use it.
             RatchouUtils.device.setDeviceId(deviceId);
 
-            if (file) {
-                // Import will call initializeStructure() which recreates everything
-                // No need to initialize() first - it would create a connection conflict
+            if (fileType === 'pairing') {
+                // CAS 1c : Import pairing file
+                // Initialize RatchouApp first (required for initializeStructure() call in importPairingFile)
+                this.updateProgress(10, 'Initialisation de l\'application...');
+                await window.ratchouApp.initialize({ skipDefaults: true });
+
+                const { importPairingFile } = await import('../components/import-export.js');
+                const result = await importPairingFile(
+                    file,
+                    securityCode,
+                    (p, m) => this.updateProgress(p, m),
+                    deviceId,
+                    accessCode
+                );
+                if (!result.success) throw new Error(result.message);
+            } else if (fileType === 'restore') {
+                // CAS 1b : Regular restore
+                // Initialize RatchouApp first (required for initializeStructure() call in importData)
+                this.updateProgress(10, 'Initialisation de l\'application...');
+                await window.ratchouApp.initialize({ skipDefaults: true });
+
                 const result = await importData(file, (p, m) => this.updateProgress(p, m), deviceId, accessCode);
                 if (!result.success) throw new Error(result.message);
+            } else if (file) {
+                // Fichier non reconnu
+                throw new Error('Type de fichier non reconnu');
             } else {
-                // For new user setup without import, we need to initialize first
+                // CAS 1a : For new user setup without import
                 await window.ratchouApp.initialize({ skipDefaults: true });
                 this.updateProgress(20, 'Création du nouvel utilisateur...');
                 await window.ratchouApp.db.put('UTILISATEUR', { code_acces: accessCode, device_id: deviceId });
@@ -232,7 +639,7 @@ class MainController {
             this.updateProgress(100, 'Configuration terminée !');
             this.progressBar.classList.remove('progress-bar-animated', 'progress-bar-striped');
             this.progressBar.classList.add('bg-success');
-            
+
             // Show the continue button
             this.continueBtn.classList.remove('container-hidden');
 

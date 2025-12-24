@@ -151,6 +151,145 @@ export async function exportDataWithFormat(format = 'zip', onProgress = null) {
     return await exportDataAsZip(onProgress);
 }
 
+/**
+ * Export pairing file (backup + sync configuration)
+ * @param {string} securityCode - 4-digit security code
+ * @param {string} targetDeviceName - Name for the target slave device
+ * @param {Function} onProgress - Progress callback function
+ * @returns {Object} Result object with success status and fileName
+ */
+export async function exportPairingFile(securityCode, targetDeviceName, onProgress = null) {
+    try {
+        // Progress tracking
+        const updateProgress = (percent, message) => {
+            if (onProgress) onProgress(percent, message);
+        };
+
+        // 1. Validate inputs
+        if (!/^\d{4}$/.test(securityCode)) {
+            throw new Error('Le code de sécurité doit contenir 4 chiffres');
+        }
+        if (!targetDeviceName || targetDeviceName.trim() === '') {
+            throw new Error('Le nom de l\'appareil est requis');
+        }
+
+        updateProgress(5, 'Vérification des prérequis...');
+
+        // 2. Check if JSZip is available
+        if (typeof JSZip === 'undefined') {
+            throw new Error('JSZip n\'est pas chargé. Veuillez recharger la page.');
+        }
+
+        // 3. Load SYNC_CONFIG from IndexedDB
+        const config = await window.db.get('SYNC_CONFIG', 'config');
+        if (!config || config.role !== 'master') {
+            throw new Error('Seul un appareil maître peut générer un fichier d\'appairage');
+        }
+        if (!config.encryption_key) {
+            throw new Error('Clé de chiffrement manquante dans SYNC_CONFIG');
+        }
+
+        updateProgress(10, 'Collecte des données...');
+
+        // 4. Get standard backup data
+        const exportData = await window.ratchouApp.exportToJSON();
+
+        updateProgress(30, 'Création du fichier d\'appairage...');
+
+        // 5. Create ZIP with pairing-specific files
+        const zip = new JSZip();
+
+        // Table name mapping for consistency
+        const tableNameMapping = {
+            'utilisateur': 'UTILISATEUR',
+            'comptes': 'COMPTES',
+            'categories': 'CATEGORIES',
+            'beneficiaires': 'BENEFICIAIRES',
+            'type_depenses': 'TYPE_DEPENSES',
+            'mouvements': 'MOUVEMENTS',
+            'recurrents': 'DEPENSES_FIXES'
+        };
+
+        // 5a. Modified metadata.json with pairing marker
+        const metadata = {
+            exportDate: new Date().toISOString(),
+            appVersion: window.ratchouApp.getVersion(),
+            dbVersion: window.ratchouApp.db.version,
+            tables: Object.values(tableNameMapping),
+            schema: window.ratchouApp.db.getSchema(),
+            isPairingFile: true,
+            pairingVersion: 1
+        };
+        zip.file('metadata.json', JSON.stringify(metadata, null, 2));
+
+        // 5b. sync-config.json
+        const syncConfig = {
+            master_id: config.master_id,
+            api_url: config.api_url,
+            encryption_key: config.encryption_key,
+            cluster_schema_version: config.cluster_schema_version || 1,
+            created_at: Date.now()
+        };
+        zip.file('sync-config.json', JSON.stringify(syncConfig, null, 2));
+
+        // 5c. pairing-info.json
+        const pairingInfo = {
+            security_code: securityCode,
+            target_device_name: targetDeviceName.trim(),
+            generated_at: Date.now(),
+            generated_by_device: config.device_id,
+            expires_at: null  // Optional: could add expiration
+        };
+        zip.file('pairing-info.json', JSON.stringify(pairingInfo, null, 2));
+
+        updateProgress(40, 'Ajout des données...');
+
+        // 5d. Add standard data files
+        for (const tableName in exportData.data) {
+            const standardTableName = tableNameMapping[tableName] || tableName.toUpperCase();
+            const fileName = `ratchou-export-${standardTableName.toLowerCase()}.json`;
+            zip.file(fileName, JSON.stringify(exportData.data[tableName], null, 2));
+        }
+
+        updateProgress(60, 'Compression...');
+
+        // 6. Generate ZIP blob
+        const zipBlob = await zip.generateAsync({
+            type: "blob",
+            compression: "DEFLATE",
+            compressionOptions: { level: 9 }
+        }, (metadata) => {
+            const progress = 60 + (metadata.percent * 0.3);
+            updateProgress(Math.round(progress), 'Compression en cours...');
+        });
+
+        updateProgress(95, 'Téléchargement...');
+
+        // 7. Download file
+        const url = URL.createObjectURL(zipBlob);
+        const a = document.createElement('a');
+        a.href = url;
+        const now = new Date();
+        const dateTime = RatchouUtils.date.toLocalFileName(now);
+        const fileName = `ratchou-pairing-${targetDeviceName.replace(/\s+/g, '-')}-${dateTime}.zip`;
+        a.download = fileName;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+
+        updateProgress(100, 'Fichier d\'appairage généré !');
+
+        console.log('✅ Pairing file generated:', fileName);
+
+        return { success: true, fileName: fileName };
+
+    } catch (error) {
+        console.error('❌ Pairing file generation error:', error);
+        return { success: false, message: error.message };
+    }
+}
+
 
 /**
  * Import data from ZIP file
@@ -300,6 +439,259 @@ export async function importDataFromZip(file, onProgress = null, deviceId, acces
         
     } catch (error) {
         console.error('Import ZIP error:', error);
+        return { success: false, message: error.message };
+    }
+}
+
+/**
+ * Import pairing file and configure sync
+ * @param {File} file - The pairing ZIP file
+ * @param {string} securityCode - 4-digit security code for validation
+ * @param {Function} onProgress - Progress callback
+ * @param {string} deviceId - Device ID for this slave
+ * @param {string} accessCode - New access code for user
+ */
+export async function importPairingFile(file, securityCode, onProgress = null, deviceId, accessCode) {
+    try {
+        const updateProgress = (percent, message) => {
+            if (onProgress) onProgress(percent, message);
+        };
+
+        updateProgress(5, 'Lecture du fichier...');
+
+        // 1. Check if JSZip is available
+        if (typeof JSZip === 'undefined') {
+            throw new Error('JSZip n\'est pas chargé. Veuillez recharger la page.');
+        }
+
+        // 2. Load and extract ZIP
+        const zipContent = await readFileAsArrayBuffer(file);
+        updateProgress(15, 'Décompression...');
+        const zip = new JSZip();
+        await zip.loadAsync(zipContent);
+
+        // 3. Validate metadata
+        updateProgress(20, 'Validation du fichier...');
+        const metadataFile = zip.file('metadata.json');
+        if (!metadataFile) {
+            throw new Error('Fichier metadata.json manquant');
+        }
+        const metadata = JSON.parse(await metadataFile.async('text'));
+
+        if (!metadata.isPairingFile) {
+            throw new Error('Ce n\'est pas un fichier d\'appairage valide. Utilisez la restauration normale.');
+        }
+
+        // 4. Load and validate pairing-info.json
+        const pairingInfoFile = zip.file('pairing-info.json');
+        if (!pairingInfoFile) {
+            throw new Error('Fichier pairing-info.json manquant');
+        }
+        const pairingInfo = JSON.parse(await pairingInfoFile.async('text'));
+
+        // Validate security code
+        if (pairingInfo.security_code !== securityCode) {
+            throw new Error('Code de sécurité incorrect');
+        }
+
+        // Check expiration (if set)
+        if (pairingInfo.expires_at && Date.now() > pairingInfo.expires_at) {
+            const expirationDate = new Date(pairingInfo.expires_at).toLocaleString('fr-FR');
+            throw new Error(`Ce fichier d'appairage a expiré le ${expirationDate}`);
+        }
+
+        updateProgress(25, 'Chargement de la configuration sync...');
+
+        // 5. Load sync-config.json
+        const syncConfigFile = zip.file('sync-config.json');
+        if (!syncConfigFile) {
+            throw new Error('Fichier sync-config.json manquant');
+        }
+        const syncConfig = JSON.parse(await syncConfigFile.async('text'));
+
+        // Validate sync config
+        if (!syncConfig.master_id || !syncConfig.encryption_key || !syncConfig.api_url) {
+            throw new Error('Configuration de synchronisation incomplète');
+        }
+
+        updateProgress(30, 'Validation des données...');
+
+        // 6. Load all data files (same as regular import)
+        let allData = {};
+        for (const tableName of metadata.tables) {
+            const jsonFile = zip.file(`ratchou-export-${tableName.toLowerCase()}.json`);
+            if (!jsonFile) {
+                throw new Error(`Fichier manquant : ${tableName}`);
+            }
+            const tableData = JSON.parse(await jsonFile.async('text'));
+            allData[tableName] = tableData;
+        }
+
+        // 7. Check for existing SYNC_CONFIG
+        updateProgress(40, 'Vérification de la configuration existante...');
+        try {
+            const existingConfig = await window.db.get('SYNC_CONFIG', 'config');
+            if (existingConfig) {
+                const overwrite = window.confirm(
+                    `Cet appareil est déjà configuré comme ${existingConfig.role}.\n\n` +
+                    'ATTENTION : Continuer va :\n' +
+                    '- Supprimer toutes les données locales\n' +
+                    '- Révoquer la configuration sync actuelle\n' +
+                    '- Configurer comme nouvel esclave\n\n' +
+                    'Voulez-vous vraiment continuer ?'
+                );
+
+                if (!overwrite) {
+                    return { success: false, message: 'Import annulé - configuration existante préservée' };
+                }
+
+                // Optional: Revoke old device from cluster
+                try {
+                    await window.NetworkClient.revoke(
+                        existingConfig.device_id,
+                        existingConfig.device_token,
+                        existingConfig.device_id,
+                        'pairing_file_overwrite'
+                    );
+                    console.log('✅ Old device revoked from cluster');
+                } catch (revokeError) {
+                    console.warn('⚠️ Failed to revoke old device:', revokeError);
+                    // Continue anyway
+                }
+            }
+        } catch (getError) {
+            // No existing config, that's fine
+            console.log('ℹ️ No existing SYNC_CONFIG found');
+        }
+
+        // 8. Handle API URL mismatch
+        const localApiUrl = localStorage.getItem('ratchou_api_url');
+        if (localApiUrl && localApiUrl !== syncConfig.api_url) {
+            const useFile = window.confirm(
+                `Conflit d'URL de serveur détecté :\n\n` +
+                `Local : ${localApiUrl}\n` +
+                `Fichier : ${syncConfig.api_url}\n\n` +
+                'Cliquer "OK" pour utiliser celle du fichier,\n' +
+                'ou "Annuler" pour garder celle locale.'
+            );
+
+            if (!useFile) {
+                syncConfig.api_url = localApiUrl;
+            }
+        }
+        // Update localStorage
+        localStorage.setItem('ratchou_api_url', syncConfig.api_url);
+
+        // 9. Confirm with user
+        updateProgress(50, 'En attente de confirmation...');
+        const confirmation = window.confirm(
+            "ATTENTION : L'importation va :\n\n" +
+            "1. Effacer toutes vos données locales\n" +
+            "2. Importer les données du maître\n" +
+            "3. Configurer la synchronisation automatique\n\n" +
+            "Continuer ?"
+        );
+
+        if (!confirmation) {
+            updateProgress(0, 'Importation annulée.');
+            return { success: false, message: 'Importation annulée.' };
+        }
+
+        // 10. Initialize structure (wipes existing data)
+        updateProgress(60, 'Réinitialisation de la base de données...');
+        await window.ratchouApp.initializeStructure();
+
+        // 11. Import data (same as regular restore)
+        updateProgress(70, 'Import des données...');
+        const tableNameMapping = {
+            'UTILISATEUR': 'utilisateur',
+            'COMPTES': 'comptes',
+            'CATEGORIES': 'categories',
+            'BENEFICIAIRES': 'beneficiaires',
+            'TYPE_DEPENSES': 'type_depenses',
+            'MOUVEMENTS': 'mouvements',
+            'DEPENSES_FIXES': 'recurrents'
+        };
+
+        const formattedData = { data: {} };
+        for (const tableName of metadata.tables) {
+            const internalName = tableNameMapping[tableName] || tableName.toLowerCase();
+            formattedData.data[internalName] = allData[tableName];
+        }
+
+        const importResult = await window.ratchouApp.importFromJSON(
+            formattedData,
+            deviceId,
+            accessCode
+        );
+
+        if (!importResult.success) {
+            throw new Error(importResult.message || 'Erreur lors de l\'import');
+        }
+
+        // 12. Configure sync as slave
+        updateProgress(80, 'Configuration de la synchronisation...');
+
+        // Generate slave device ID
+        const slaveId = `slave_${Date.now()}_${crypto.randomUUID().slice(0, 6)}`;
+        console.log('🔧 Generated slave_id:', slaveId);
+
+        // Register with server
+        updateProgress(85, 'Enregistrement sur le serveur...');
+        const pairResult = await window.NetworkClient.pair({
+            device_id: slaveId,
+            master_id: syncConfig.master_id,
+            role: 'slave'
+        });
+
+        if (!pairResult.success) {
+            if (pairResult.error === 'master_not_found') {
+                throw new Error(
+                    'Le maître référencé dans ce fichier n\'existe plus sur le serveur.\n' +
+                    'Le fichier est peut-être trop ancien ou le maître a été révoqué.'
+                );
+            }
+            throw new Error('Échec de l\'enregistrement sur le serveur : ' + pairResult.message);
+        }
+
+        console.log('✅ Slave registered on server with token');
+
+        // Store SYNC_CONFIG in IndexedDB
+        updateProgress(88, 'Sauvegarde de la configuration...');
+        await window.db.put('SYNC_CONFIG', {
+            id: 'config',
+            device_id: slaveId,
+            master_id: syncConfig.master_id,
+            role: 'slave',
+            api_url: syncConfig.api_url,
+            device_token: pairResult.device_token,
+            encryption_key: syncConfig.encryption_key,
+            cluster_schema_version: syncConfig.cluster_schema_version,
+            created_at: Date.now(),
+            updated_at: Date.now()
+        });
+
+        console.log('✅ SYNC_CONFIG saved for slave device');
+
+        // 13. Auto-login
+        updateProgress(95, 'Connexion automatique...');
+        const loginResult = await window.ratchouApp.login(accessCode, deviceId);
+        if (!loginResult.success) {
+            console.warn('Auto-login failed after import:', loginResult.message);
+        } else {
+            console.log('✅ Automatic login successful after import');
+        }
+
+        updateProgress(100, 'Import et configuration terminés !');
+
+        return {
+            success: true,
+            message: 'Appareil configuré et synchronisé avec succès !',
+            slaveId: slaveId
+        };
+
+    } catch (error) {
+        console.error('❌ Pairing file import error:', error);
         return { success: false, message: error.message };
     }
 }
@@ -606,3 +998,19 @@ export function initializeImportExportEvents() {
     // - Export button: handled by sidebar.js (after sidebar is loaded)
     // - Import button: handled by modals.js (after modals are loaded)
 }
+
+/**
+ * Expose functions globally for non-module scripts
+ * This allows pages like sync-pairing.html to access these functions
+ * without converting to ES6 modules
+ */
+window.ImportExport = {
+    exportDataAsZip,
+    exportDataWithFormat,
+    exportPairingFile,
+    importDataFromZip,
+    importPairingFile,
+    importData,
+    uninstallApp,
+    initializeImportExportEvents
+};

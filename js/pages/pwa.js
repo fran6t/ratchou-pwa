@@ -204,6 +204,9 @@ class PWAPage {
         console.log('[PWA Debug] Setting up install section...');
         this.setupInstallSection();
 
+        // Gestion avancée du cache
+        this.setupAdvancedCacheManagement();
+
         // Affichage du guide iOS si nécessaire
         this.handleiOSGuide();
 
@@ -289,6 +292,132 @@ class PWAPage {
             lastUpdateElement.textContent = '-';
         }
     }
+
+    /**
+     * Configure la gestion avancée du cache
+     */
+    setupAdvancedCacheManagement() {
+        const clearCachesBtn = document.getElementById('clear-caches-btn');
+        if (clearCachesBtn) {
+            clearCachesBtn.addEventListener('click', () => this.clearPwaCaches());
+        }
+
+        const showCachedFilesBtn = document.getElementById('show-cached-files-btn');
+        if (showCachedFilesBtn) {
+            showCachedFilesBtn.addEventListener('click', () => this.displayCachedFiles());
+        }
+    }
+
+    /**
+     * Efface tous les caches PWA de l'application
+     */
+    async clearPwaCaches() {
+        if (!confirm("Êtes-vous sûr de vouloir supprimer tous les caches de l'application ?\n\nCette action est irréversible et forcera le re-téléchargement de tous les fichiers au prochain chargement.")) {
+            return;
+        }
+
+        const clearBtn = document.getElementById('clear-caches-btn');
+        clearBtn.disabled = true;
+        clearBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Effacement en cours...';
+
+        try {
+            const keys = await caches.keys();
+            const ratchouKeys = keys.filter(key => key.startsWith('ratchou-'));
+
+            if (ratchouKeys.length === 0) {
+                this.showPWANotification('Aucun cache à effacer.', 'info');
+                return;
+            }
+
+            await Promise.all(ratchouKeys.map(key => caches.delete(key)));
+
+            this.showPWANotification('Tous les caches ont été effacés avec succès. Veuillez recharger la page.', 'success', true);
+
+            // Mise à jour de l'affichage
+            await this.updateSystemInfo();
+
+        } catch (error) {
+            console.error('Erreur lors de l\'effacement des caches :', error);
+            this.showPWANotification('Erreur lors de l\'effacement des caches.', 'danger');
+        } finally {
+            clearBtn.disabled = false;
+            clearBtn.innerHTML = '<i class="bi bi-trash"></i> Forcer l\'effacement de tous les caches';
+        }
+    }
+
+    /**
+     * Affiche les fichiers contenus dans les caches PWA
+     */
+    async displayCachedFiles() {
+        const container = document.getElementById('cached-files-container');
+        if (!container) return;
+
+        const showBtn = document.getElementById('show-cached-files-btn');
+        showBtn.disabled = true;
+        showBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Lecture...';
+
+        try {
+            const keys = await caches.keys();
+            const ratchouKeys = keys.filter(key => key.startsWith('ratchou-'));
+
+            if (ratchouKeys.length === 0) {
+                container.innerHTML = '<p class="text-muted">Aucun cache trouvé.</p>';
+                return;
+            }
+
+            let html = '';
+            for (const key of ratchouKeys) {
+                const cache = await caches.open(key);
+                const requests = await cache.keys();
+
+                html += `
+                    <h6 class="mt-3">${key} (${requests.length} fichiers)</h6>
+                    <ul class="list-group list-group-sm">
+                `;
+
+                if (requests.length === 0) {
+                    html += '<li class="list-group-item">Ce cache est vide.</li>';
+                } else {
+                    for (const request of requests) {
+                        const response = await cache.match(request);
+                        const date = response ? this.formatDate(response.headers.get('date')) : 'N/A';
+                        html += `
+                            <li class="list-group-item d-flex justify-content-between align-items-center">
+                                <span>${new URL(request.url).pathname}</span>
+                                <span class="badge bg-secondary">${date}</span>
+                            </li>
+                        `;
+                    }
+                }
+                html += '</ul>';
+            }
+            container.innerHTML = html;
+
+        } catch (error) {
+            console.error('Erreur lors de la lecture des fichiers en cache :', error);
+            container.innerHTML = '<div class="alert alert-danger">Erreur lors de la lecture des caches.</div>';
+        } finally {
+            showBtn.disabled = false;
+            showBtn.innerHTML = '<i class="bi bi-list-ul"></i> Lister les fichiers en cache';
+        }
+    }
+
+    formatDate(dateString) {
+        if (!dateString) return 'N/A';
+        try {
+            return new Date(dateString).toLocaleString('fr-FR', {
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+        } catch (e) {
+            return dateString;
+        }
+    }
+
+
 
     /**
      * Configure la section d'installation selon la plateforme

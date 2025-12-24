@@ -149,11 +149,66 @@ const DATABASE_SCHEMA = {
             last_execution: { type: 'string', required: false },
         }
     },
+    SYNC_QUEUE: {
+        keyPath: 'id',
+        indexes: {
+            synced: { keyPath: 'synced', options: { unique: false } },
+            timestamp: { keyPath: 'timestamp', options: { unique: false } },
+            store_name: { keyPath: 'store_name', options: { unique: false } },
+            operation: { keyPath: 'operation', options: { unique: false } },
+            synced_timestamp: { keyPath: ['synced', 'timestamp'], options: { unique: false } }
+        },
+        fields: {
+            id: { type: 'string', required: true },
+            store_name: { type: 'string', required: true },
+            record_id: { type: 'string', required: true },
+            operation: { type: 'string', required: true },
+            data: { type: 'object', required: true },
+            schema_version: { type: 'number', required: true },
+            timestamp: { type: 'number', required: true },
+            synced: { type: 'number', required: true }
+        }
+    },
+    SYNC_CONFIG: {
+        keyPath: 'id',
+        indexes: {},
+        fields: {
+            id: { type: 'string', required: true },
+            device_id: { type: 'string', required: true },
+            master_id: { type: 'string', required: true },
+            role: { type: 'string', required: true },
+            api_url: { type: 'string', required: false },
+            device_token: { type: 'string', required: false },
+            encryption_key: { type: 'string', required: false },
+            cluster_schema_version: { type: 'number', required: false },
+            created_at: { type: 'number', required: true },
+            updated_at: { type: 'number', required: true }
+        }
+    },
+    SYNC_LOG: {
+        keyPath: 'id',
+        indexes: {
+            timestamp: { keyPath: 'timestamp', options: { unique: false } },
+            status: { keyPath: 'status', options: { unique: false } },
+            sync_type: { keyPath: 'sync_type', options: { unique: false } }
+        },
+        fields: {
+            id: { type: 'string', required: true },
+            timestamp: { type: 'number', required: true },
+            sync_type: { type: 'string', required: true },
+            status: { type: 'string', required: true },
+            duration_ms: { type: 'number', required: true },
+            records_count: { type: 'number', required: true },
+            errors: { type: 'array', required: false },
+            conflicts: { type: 'array', required: false },
+            details: { type: 'object', required: false }
+        }
+    }
 };
 
 
 class IndexedDBWrapper {
-    constructor(dbName = 'ratchou', version = 2) {
+    constructor(dbName = 'ratchou', version = 3) {
         this.dbName = dbName;
         this.version = version;
         this.db = null;
@@ -232,6 +287,11 @@ class IndexedDBWrapper {
         if (oldVersion < 2) {
             console.log('📦 Migrating to version 2: Recurring expenses enhancements');
             this.migrateToVersion2(transaction);
+        }
+
+        if (oldVersion < 3) {
+            console.log('🔄 Migrating to version 3: Sync infrastructure');
+            this.migrateToVersion3(transaction);
         }
     }
 
@@ -357,6 +417,68 @@ class IndexedDBWrapper {
 
         request.onerror = () => {
             console.error('❌ Error migrating MOUVEMENTS:', request.error);
+        };
+    }
+
+    /**
+     * Migration vers version 3
+     * Ajoute les stores de synchronisation: SYNC_QUEUE, SYNC_CONFIG, SYNC_LOG
+     */
+    migrateToVersion3(transaction) {
+        try {
+            console.log('🔄 Starting migration to version 3...');
+
+            // Les stores sont créés par createInitialStores()
+            console.log('✅ Created SYNC_QUEUE store');
+            console.log('✅ Created SYNC_CONFIG store');
+            console.log('✅ Created SYNC_LOG store');
+
+            // IMPORTANT: Ne pas initialiser SYNC_CONFIG automatiquement
+            // La synchronisation doit être configurée explicitement par l'utilisateur
+            // via manage/sync-pairing.html pour générer un device_id au bon format
+            // (master_timestamp_randomchars ou slave_timestamp_randomchars)
+            console.log('ℹ️ SYNC_CONFIG will be created when user configures sync via sync-pairing.html');
+
+            console.log('✅ Migration to version 3 completed');
+        } catch (error) {
+            console.error('❌ Critical error in migrateToVersion3:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Initialiser SYNC_CONFIG avec valeurs par défaut (offline-first)
+     * @deprecated Cette méthode n'est plus utilisée - SYNC_CONFIG doit être créée
+     *             explicitement via manage/sync-pairing.html pour garantir un device_id valide
+     */
+    initializeSyncConfig(transaction) {
+        const store = transaction.objectStore('SYNC_CONFIG');
+        const deviceId = RatchouUtils.device.getCurrentDeviceId();
+
+        if (!deviceId) {
+            console.warn('⚠️ Device ID not set - SYNC_CONFIG sera créé au premier usage');
+            return;
+        }
+
+        const defaultConfig = {
+            id: 'config',
+            device_id: deviceId,
+            master_id: deviceId,        // Par défaut = son propre master
+            role: 'master',             // Offline = master
+            api_url: null,              // Pas de serveur = offline
+            device_token: null,
+            encryption_key: null,
+            cluster_schema_version: 1,
+            created_at: Date.now(),
+            updated_at: Date.now()
+        };
+
+        const checkRequest = store.get('config');
+        checkRequest.onsuccess = (event) => {
+            if (!event.target.result) {
+                store.put(defaultConfig);
+                console.log('✅ Initialized SYNC_CONFIG with offline-only defaults');
+            }
         };
     }
 

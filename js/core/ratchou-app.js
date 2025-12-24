@@ -11,6 +11,7 @@ class RatchouApp {
         this.auth = null;
         this.models = {};
         this.isInitialized = false;
+        this.syncManager = null;
     }
 
     /**
@@ -31,8 +32,10 @@ class RatchouApp {
 
     /**
      * Initialize the application
+     * @param {object} options - Initialization options
+     * @param {boolean} options.skipDefaults - If true, skip creating default data (for import/restore)
      */
-    async initialize() {
+    async initialize(options = {}) {
         try {
             RatchouUtils.debug.log('Initializing Ratchou application');
 
@@ -40,6 +43,9 @@ class RatchouApp {
             // Initialize IndexedDB wrapper
             this.db = new IndexedDBWrapper('ratchou', 1);
             await this.db.init();
+
+            // Expose db globally for sync components (NetworkClient, SyncManager, etc.)
+            window.db = this.db;
 
             // Initialize authentication
             this.auth = new RatchouAuth(this.db);
@@ -55,13 +61,17 @@ class RatchouApp {
                 recurringExpenses: new RecurringExpensesModel(this.db)
             };
 
-            // Initialize with default data if this is first run
-            const accountCount = await this.models.accounts.count();
-            if (accountCount === 0) {
-                RatchouUtils.debug.log('First run detected, creating default data');
-                await this.initializeWithDefaults();
+            // Initialize with default data if this is first run (unless skipDefaults is set)
+            if (!options.skipDefaults) {
+                const accountCount = await this.models.accounts.count();
+                if (accountCount === 0) {
+                    RatchouUtils.debug.log('First run detected, creating default data');
+                    await this.initializeWithDefaults();
+                } else {
+                    RatchouUtils.debug.log('First run déjà fait');
+                }
             } else {
-                RatchouUtils.debug.log('First run déjà fait');
+                RatchouUtils.debug.log('Skipping default data creation (skipDefaults = true)');
             }
 
             // Fix invalid start_dates in recurring expenses (silent correction)
@@ -70,15 +80,82 @@ class RatchouApp {
                 console.log(`✅ ${fixResult.message}`);
             }
 
+            // Initialize SyncManager if SYNC_CONFIG exists
+            await this.initializeSyncIfConfigured();
+
             this.isInitialized = true;
 
             RatchouUtils.debug.log('Ratchou application initialized successfully');
             console.log('✅ Ratchou application initialization completed');
             return RatchouUtils.error.success('Application initialisée');
-            
+
         } catch (error) {
             console.error('Application initialization error:', error);
             return RatchouUtils.error.handleIndexedDBError(error, 'initialisation');
+        }
+    }
+
+    /**
+     * Initialize SyncManager if SYNC_CONFIG exists
+     * Non-blocking: app continues if sync initialization fails
+     */
+    async initializeSyncIfConfigured() {
+        try {
+            console.log('🔍 Checking for sync configuration...');
+
+            // 1. Vérifier si SYNC_CONFIG existe
+            const syncConfig = await this.db.get('SYNC_CONFIG', 'config');
+
+            if (!syncConfig) {
+                console.log('ℹ️ No SYNC_CONFIG found - app running in offline-only mode');
+                return;
+            }
+
+            console.log(`🔄 SYNC_CONFIG found - initializing SyncManager for device: ${syncConfig.device_id}`);
+
+            // 2. Vérifier que les modules de sync sont chargés
+            if (!window.SyncManager) {
+                console.warn('⚠️ SyncManager class not loaded - sync disabled');
+                console.warn('   → Add sync-manager.js script in HTML head');
+                return;
+            }
+
+            if (!window.SyncCrypto) {
+                console.warn('⚠️ SyncCrypto not loaded - sync disabled');
+                return;
+            }
+
+            if (!window.NetworkClient) {
+                console.warn('⚠️ NetworkClient not loaded - sync disabled');
+                return;
+            }
+
+            // 3. Créer instance SyncManager
+            this.syncManager = new SyncManager(this.db, syncConfig);
+
+            // 4. Démarrer SyncManager (charge encryption key)
+            await this.syncManager.start();
+
+            // 5. Démarrer polling périodique (8 secondes selon phase3-sync-implementation.md)
+            const SYNC_INTERVAL = 8000;
+            this.syncManager.startPeriodicSync(SYNC_INTERVAL);
+
+            // 6. Exposer globalement pour accès depuis d'autres modules
+            window.syncManager = this.syncManager;
+
+            console.log(`✅ SyncManager active - polling every ${SYNC_INTERVAL}ms`);
+            console.log(`   Role: ${syncConfig.role} | Master: ${syncConfig.master_id}`);
+
+            // 7. Log initial status
+            const stats = await this.syncManager.getStats();
+            if (stats && stats.pending > 0) {
+                console.log(`📊 Sync queue: ${stats.pending} operation(s) pending`);
+            }
+
+        } catch (error) {
+            console.error('❌ Failed to initialize SyncManager:', error);
+            console.warn('⚠️ App will continue in offline mode');
+            // Ne pas throw - l'app doit continuer même si sync échoue
         }
     }
 
@@ -101,6 +178,9 @@ class RatchouApp {
             // Note: recreateDatabase() already calls init() internally
             await this.db.recreateDatabase();
             console.log('✅ Database recreated and reinitialized');
+
+            // Expose db globally for sync components (NetworkClient, SyncManager, etc.)
+            window.db = this.db;
 
             // 2. Initialize authentication system
             this.auth = new RatchouAuth(this.db);
@@ -174,6 +254,14 @@ class RatchouApp {
 
     logout() {
         this.requireInitialized();
+
+        // Stop SyncManager before logout
+        if (this.syncManager) {
+            console.log('⏸️ Stopping SyncManager before logout...');
+            this.syncManager.stopPeriodicSync();
+            this.syncManager = null;
+            window.syncManager = null;
+        }
 
         // Close IndexedDB connection before logout to prevent issues on restore
         if (this.db && this.db.db) {
@@ -568,10 +656,13 @@ class RatchouApp {
             for (const [name, model] of Object.entries(this.models)) {
                 await model.clear();
             }
-            
+
             // Clear user data
             await this.db.clear('UTILISATEUR');
-            
+
+            // Clear sync config
+            await this.db.clear('SYNC_CONFIG');
+
             // Clear storage
             RatchouUtils.storage.clear();
             

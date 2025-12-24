@@ -48,8 +48,20 @@
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
         }
 
+        /* Dark theme gradient */
+        [data-bs-theme="dark"] body {
+            background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
+        }
+
+        /* iOS Safari viewport fix */
+        @supports (-webkit-touch-callout: none) {
+            body {
+                min-height: -webkit-fill-available;
+            }
+        }
+
         .persistence-container {
-            background: white;
+            background: var(--bs-body-bg);
             border-radius: 20px;
             box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
             max-width: 700px;
@@ -63,6 +75,12 @@
             padding: 2rem;
             text-align: center;
             position: relative;
+        }
+
+        /* Dark theme header */
+        [data-bs-theme="dark"] .persistence-header {
+            background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
+            color: var(--bs-body-color);
         }
 
         .persistence-header::before {
@@ -115,22 +133,6 @@
 
         .persistence-body {
             padding: 2.5rem;
-        }
-
-        .explanation-box {
-            background: #e7f3ff;
-            border-left: 4px solid #0d6efd;
-            padding: 1.5rem;
-            margin: 1.5rem 0;
-            border-radius: 0 8px 8px 0;
-        }
-
-        .risk-warning {
-            background: #fff3cd;
-            border: 1px solid #ffeaa7;
-            border-radius: 8px;
-            padding: 1.5rem;
-            margin-top: 2rem;
         }
 
         .action-buttons {
@@ -191,7 +193,8 @@
         }
 
         .status-info {
-            background: #f8f9fa;
+            background: var(--bs-secondary-bg);
+            color: var(--bs-body-color);
             border-radius: 6px;
             padding: 1rem;
             margin-top: 1.5rem;
@@ -232,23 +235,22 @@
                     <img src="assets/img/Logo_Ratchou.webp" alt="Ratchou" class="ratchou-logo">
                 </div>
                 <h1 class="persistence-title">Stockage persistant requis</h1>
-                <p class="persistence-subtitle">Pour protéger vos données financières</p>
             </div>
 
             <!-- Body -->
             <div class="persistence-body">
-                <div class="explanation-box">
+                <div class="alert alert-info border-start border-4 border-primary mb-3">
                     <h5><i class="bi bi-shield-check text-primary me-2"></i>Pourquoi cette validation ?</h5>
                     <p class="mb-2">
                         Ratchou a besoin d'un <strong>stockage persistant</strong> pour garantir que vos données
                         financières ne soient pas supprimées automatiquement par le navigateur.
                     </p>
                     <p class="mb-0">
-                        Sans stockage persistant, vos comptes et transactions pourraient être perdus si l'espace de stockage manque.
+                        Sans stockage persistant, vos comptes et transactions pourraient être perdus.
                     </p>
                 </div>
 
-                <div class="risk-warning">
+                <div class="alert alert-warning">
                     <h5><i class="bi bi-exclamation-triangle text-warning me-2"></i>Que se passe-t-il si je continue sans stockage persistant ?</h5>
                     <ul class="mb-3">
                         <li>Vos données pourraient être supprimées automatiquement par le navigateur</li>

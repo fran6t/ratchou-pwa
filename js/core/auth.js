@@ -134,14 +134,21 @@ class RatchouAuth {
 
             // Get old user data to preserve device_id
             const oldUserData = await this.db.get('UTILISATEUR', currentCode);
-            const deviceId = oldUserData ? oldUserData.device_id : RatchouUtils.device.generateDeviceId();
+            if (!oldUserData) {
+                return RatchouUtils.error.validation('Utilisateur introuvable avec le code actuel');
+            }
+            const deviceId = oldUserData.device_id;
 
-            // Remove old user record
-            await this.db.delete('UTILISATEUR', currentCode);
-
-            // Create new user record
+            // Use a transaction to ensure atomicity
+            const tx = this.db.db.transaction('UTILISATEUR', 'readwrite');
+            const store = tx.objectStore('UTILISATEUR');
+            
+            // Delete old record
+            await store.delete(currentCode);
+            
+            // Add new record
             const newUserData = { code_acces: newCode, device_id: deviceId };
-            await this.db.put('UTILISATE-UR', newUserData);
+            await store.add(newUserData);
 
             // Update current session with new hashed code
             const newHashedCode = await RatchouUtils.crypto.hashAccessCode(newCode);

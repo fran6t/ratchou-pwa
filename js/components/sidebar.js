@@ -12,6 +12,13 @@ export function generateSidebar() {
     const isInManageFolder = window.location.pathname.includes('/manage/');
     const managePath = isInManageFolder ? '' : 'manage/';
 
+    // Vérifier si le mode beta est activé
+    const isBetaMode = typeof RatchouUtils !== 'undefined' &&
+        RatchouUtils.featureFlags &&
+        RatchouUtils.featureFlags.isEnabled(
+            RatchouUtils.featureFlags.FLAGS.BETA_TESTER_MODE
+        );
+
     return `
     <!-- Sidebar Menu -->
     <div class="offcanvas offcanvas-end" tabindex="-1" id="sideMenu">
@@ -50,6 +57,12 @@ export function generateSidebar() {
                     💳 <strong>Types de paiement</strong>
                     <small class="d-block text-muted">Carte, espèces, virement...</small>
                 </a>
+                ${isBetaMode ? `
+                <a href="${managePath}sync-pairing.html" class="list-group-item list-group-item-action">
+                    🔗 <strong>Synchronisation</strong>
+                    <small class="d-block text-muted">Gérer les appareils</small>
+                </a>
+                ` : ''}
 
                 <!-- Sous-menu Système (collapse) -->
                 <div class="list-group-item list-group-item-action p-0">

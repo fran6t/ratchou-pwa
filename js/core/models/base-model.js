@@ -46,7 +46,10 @@ class BaseModel {
             const transformedData = this.transformForStorage({ ...data });
 
             await this.db.putWithMeta(this.storeName, transformedData);
-            
+
+            // Queue pour sync si activée
+            await this.queueSyncOperation('CREATE', transformedData.id, transformedData);
+
             return RatchouUtils.error.success('Enregistrement créé avec succès', transformedData);
         } catch (error) {
             console.error(`Error creating ${this.storeName}:`, error);
@@ -69,8 +72,12 @@ class BaseModel {
             const transformedData = this.transformForStorage(updatedData);
 
             await this.db.putWithMeta(this.storeName, transformedData);
-            
-            return RatchouUtils.error.success('Enregistrement mis à jour avec succès', transformedData);
+
+            // Re-fetch before queueing to ensure we send the definitive merged state
+            const finalData = await this.getById(id);
+            await this.queueSyncOperation('UPDATE', id, finalData);
+
+            return RatchouUtils.error.success('Enregistrement mis à jour avec succès', finalData);
         } catch (error) {
             console.error(`Error updating ${this.storeName}:`, error);
             return RatchouUtils.error.handleIndexedDBError(error, 'mise à jour');
@@ -96,7 +103,11 @@ class BaseModel {
 
             RatchouUtils.debug.log(`Soft deleting ${this.storeName} with ID: ${id}`);
             await this.db.softDelete(this.storeName, id);
-            
+
+            // Queue pour sync si activée
+            const deletedRecord = await this.getById(id);
+            await this.queueSyncOperation('DELETE', id, deletedRecord);
+
             return RatchouUtils.error.success('Enregistrement supprimé avec succès');
         } catch (error) {
             console.error(`Error deleting ${this.storeName}:`, error);
@@ -194,6 +205,46 @@ class BaseModel {
     async canDelete(id) {
         // By default, allow deletion
         return RatchouUtils.error.success('Deletion allowed');
+    }
+
+    /**
+     * Enqueue une opération pour synchronisation (si sync activée)
+     * @param {string} operation - CREATE, UPDATE, DELETE
+     * @param {string} recordId - ID du record
+     * @param {object} data - Données complètes du record
+     */
+    async queueSyncOperation(operation, recordId, data) {
+        try {
+            // Vérifier si sync est configurée
+            const syncConfig = await this.db.get('SYNC_CONFIG', 'config');
+            if (!syncConfig) {
+                // Sync non configurée - skip queueing
+                RatchouUtils.debug.log(`Sync non configurée - skip queue pour ${operation} ${recordId}`);
+                return;
+            }
+
+            // Ne pas queue les stores SYNC_* (éviter boucle infinie)
+            if (this.storeName.startsWith('SYNC_')) {
+                return;
+            }
+
+            const queueEntry = {
+                id: `sync_${Date.now()}_${RatchouUtils.generateUUID().slice(0, 8)}`,
+                store_name: this.storeName,
+                record_id: recordId,
+                operation: operation,
+                data: data,
+                schema_version: 1,
+                timestamp: Date.now(),
+                synced: 0
+            };
+
+            await this.db.put('SYNC_QUEUE', queueEntry);
+            RatchouUtils.debug.log(`✅ Queued ${operation} for ${this.storeName}:${recordId}`);
+        } catch (error) {
+            // Échec du queueing = non-critique - l'opération réussit quand même
+            console.warn(`Échec queueing sync (non-critique):`, error);
+        }
     }
 
     /**

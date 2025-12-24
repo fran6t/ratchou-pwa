@@ -11,7 +11,7 @@
  */
 
 // 1) VERSIONNAGE : incrémente APP_VERSION à chaque release
-const APP_VERSION = '1.0.9'; // <- augmente ce nombre quand tu déploies une nouvelle version
+const APP_VERSION = '1.2.0'; // <- augmente ce nombre quand tu déploies une nouvelle version
 
 // 2) Noms de caches basés sur la version (important pour invalider l'ancien cache)
 const STATIC_CACHE = `ratchou-static-${APP_VERSION}`;
@@ -46,8 +46,11 @@ const STATIC_FILES = [
   './js/core/models/mouvements-model.js',
   './js/core/models/recurrents-model.js',
   './js/core/models/type_depenses-model.js',
+  './js/core/network-client.js',
   './js/core/private-mode-detector.js',
   './js/core/ratchou-app.js',
+  './js/core/sync-crypto.js',
+  './js/core/sync-manager.js',
   './js/core/theme-manager.js',
   './js/core/utils.js',
   './js/lib/jszip.min.js',
@@ -62,6 +65,7 @@ const STATIC_FILES = [
   './js/pages/projection.js',
   './js/pages/pwa.js',
   './js/pages/recurrents.js',
+  './js/pages/sync-pairing.js',
   './js/pages/type_depenses.js',
   './js/pwa/install.js',
   './js/pwa/persistence.js',
@@ -74,10 +78,16 @@ const STATIC_FILES = [
   './manage/projection.html',
   './manage/pwa.html',
   './manage/recurrents.html',
+  './manage/sync-pairing.html',
   './manage/type_depenses.html',
   './manifest.json',
   './persistence-required.html',
   './sw.js',
+  './assets/css/fonts/bootstrap-icons.woff2',
+  './assets/css/fonts/bootstrap-icons.woff',
+  './assets/icons/icon-192-maskable.png',
+  './assets/icons/icon-512-maskable.png',
+  './assets/img/Logo_Ratchou.webp',
 
 ];
 // END:STATIC_FILES

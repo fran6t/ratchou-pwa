@@ -85,6 +85,69 @@ class AccountsModel extends BaseModel {
         }
     }
 
+    async update(id, data) {
+        // 1. Get old balance if balance is being updated
+        let oldBalance = null;
+        if (data.balance !== undefined) {
+            const existing = await this.getById(id);
+            if (existing) {
+                oldBalance = existing.balance;
+            }
+        }
+
+        // 2. Perform the actual update on the account
+        const updateResult = await super.update(id, data);
+
+        // 3. If balance was updated, create an adjustment transaction
+        if (updateResult.success && oldBalance !== null && data.balance !== oldBalance) {
+            const newBalance = data.balance;
+            const difference = newBalance - oldBalance;
+
+            // Create a new transaction but DON'T use TransactionsModel.create to avoid double balance update
+            const transactionData = {
+                id: RatchouUtils.generateUUID(),
+                account_id: id,
+                amount: difference,
+                description: 'Ajustement de solde',
+                date_mouvement: RatchouUtils.date.now(),
+                // Default values to avoid issues with validation or foreign keys
+                category_id: null,
+                payee_id: null,
+                expense_type_id: null,
+            };
+
+            try {
+                // Manually save the transaction object using putWithMeta to include timestamps
+                await this.db.putWithMeta('MOUVEMENTS', transactionData);
+                
+                // Get the newly saved data to have created_at/updated_at for sync
+                const finalTransactionData = await this.db.get('MOUVEMENTS', transactionData.id);
+
+                // Manually queue for sync.
+                // We do this manually because we are in AccountsModel but need to queue a change for MOUVEMENTS.
+                const queueEntry = {
+                    id: `sync_${Date.now()}_${RatchouUtils.generateUUID().slice(0, 8)}`,
+                    store_name: 'MOUVEMENTS',
+                    record_id: finalTransactionData.id,
+                    operation: 'CREATE',
+                    data: finalTransactionData,
+                    schema_version: 1, // Assuming a schema version, to be consistent with BaseModel
+                    timestamp: Date.now(),
+                    synced: 0
+                };
+                await this.db.put('SYNC_QUEUE', queueEntry);
+
+                RatchouUtils.debug.log(`✅ Queued adjustment transaction for sync: ${transactionData.id}`);
+
+            } catch (error) {
+                console.error("Failed to create or sync adjustment transaction:", error);
+                // This is not fatal to the account update itself, so we just log it.
+            }
+        }
+
+        return updateResult;
+    }
+
     /**
      * Correct account balance (for manual adjustments)
      * @param {number} accountId - Account ID

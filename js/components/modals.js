@@ -31,15 +31,15 @@ export function generateModals() {
                     </div>
                     <form id="accessCodeForm">
                         <div class="mb-3">
-                            <label for="currentCode" class="form-label">Code actuel</label>
+                            <label for="currentCode" class="form-label">Ancien code d'accès</label>
                             <input type="password" class="form-control" id="currentCode" maxlength="4" required>
                         </div>
                         <div class="mb-3">
-                            <label for="newCode" class="form-label">Nouveau code (4 chiffres)</label>
+                            <label for="newCode" class="form-label">Nouveau code d'accès (4 chiffres)</label>
                             <input type="password" class="form-control" id="newCode" maxlength="4" pattern="[0-9]{4}" required>
                         </div>
                         <div class="mb-3">
-                            <label for="confirmCode" class="form-label">Confirmer le nouveau code</label>
+                            <label for="confirmCode" class="form-label">Confirmez le nouveau code d'accès</label>
                             <input type="password" class="form-control" id="confirmCode" maxlength="4" pattern="[0-9]{4}" required>
                         </div>
                     </form>
@@ -148,7 +148,7 @@ function initializeAccessCodeModal() {
                 return;
             }
             
-            if (!/^\\d{4}$/.test(newCode)) {
+            if (!/^\d{4}$/.test(newCode)) {
                 showModalAlert('Le nouveau code doit contenir exactement 4 chiffres', 'danger');
                 return;
             }

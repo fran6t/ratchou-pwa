@@ -118,11 +118,57 @@
                                     <label for="accessCodeLogin" class="form-label">Code d'accès</label>
                                     <input type="tel" class="form-control form-control-lg code-input" id="accessCodeLogin" maxlength="4" placeholder="...." required autocomplete="off" inputmode="numeric" pattern="[0-9]{4}" data-lpignore="true" spellcheck="false">
                                 </div>
-                                <button type="submit" class="btn btn-primary btn-lg w-100" id="loginBtn">Se connecter</button>
+
+                                <!-- Options supplémentaires -->
+                                <div class="border-top pt-3 mt-3">
+                                    <h2 class="h6 mb-3 text-muted">Options supplémentaires</h2>
+
+                                    <!-- Option 1 : Réinitialisation complète (2b) -->
+                                    <div class="form-check mb-2">
+                                        <input class="form-check-input" type="checkbox" id="loginResetCheckbox">
+                                        <label class="form-check-label text-danger" for="loginResetCheckbox">
+                                            <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                                            Réinitialiser l'application (⚠️ supprime tout)
+                                        </label>
+                                    </div>
+
+                                    <!-- Option 2 : Fichier sauvegarde/appairage (2c/2d) -->
+                                    <div class="form-check mb-3">
+                                        <input class="form-check-input" type="checkbox" id="loginFileCheckbox">
+                                        <label class="form-check-label" for="loginFileCheckbox">
+                                            J'ai un fichier de sauvegarde ou d'appairage
+                                        </label>
+                                    </div>
+
+                                    <!-- Input fichier (conditionnel) -->
+                                    <div class="mb-3 d-none" id="loginFileContainer">
+                                        <label for="loginImportFile" class="form-label">Sélectionner le fichier</label>
+                                        <input type="file" class="form-control" id="loginImportFile" accept=".json,.zip">
+                                        <div class="form-text">Formats acceptés : JSON ou ZIP</div>
+                                    </div>
+
+                                    <!-- Code sécurité (conditionnel - détection auto si pairing) -->
+                                    <div class="mb-3 d-none" id="loginSecurityCodeContainer">
+                                        <label for="loginSecurityCode" class="form-label">
+                                            <i class="bi bi-shield-check me-1"></i>
+                                            Code de sécurité du fichier d'appairage
+                                        </label>
+                                        <input type="tel" class="form-control text-center" id="loginSecurityCode" maxlength="4" placeholder="0000" pattern="[0-9]{4}">
+                                        <div class="form-text">Code fourni avec le fichier d'appairage</div>
+                                    </div>
+
+                                    <!-- Avertissement opérations destructives -->
+                                    <div class="alert alert-warning d-none" id="loginWarning">
+                                        <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                                        <strong>Attention :</strong> Cette opération supprimera toutes vos données actuelles.
+                                    </div>
+                                </div>
+
+                                <!-- Bouton principal (texte adaptatif) -->
+                                <button type="submit" class="btn btn-primary btn-lg w-100 mt-3" id="loginBtn">
+                                    <span id="loginBtnText">Se connecter</span>
+                                </button>
                             </form>
-                            <div class="text-center mt-3">
-                                <button class="btn btn-link" id="showSetupBtn">Restaurer ou réinitialiser</button>
-                            </div>
                         </div>
 
                         <!-- ===== SETUP CONTAINER ===== -->
@@ -143,16 +189,30 @@
                                 </div>
 
                                 <h2 class="h5 border-bottom pb-2 mt-4 mb-3">3. Données (Optionnel)</h2>
+
+                                <!-- Checkbox unique pour fichier avec détection automatique -->
                                 <div class="form-check mb-3">
-                                    <input class="form-check-input" type="checkbox" id="hasRestoreFile">
-                                    <label class="form-check-label" for="hasRestoreFile">
-                                        J'ai un fichier de restauration
+                                    <input class="form-check-input" type="checkbox" id="setupFileCheckbox">
+                                    <label class="form-check-label" for="setupFileCheckbox">
+                                        J'ai un fichier de sauvegarde ou d'appairage
                                     </label>
                                 </div>
-                                <div class="mb-3 d-none" id="restoreFileContainer">
-                                    <label for="importFile" class="form-label">Sélectionner le fichier de sauvegarde</label>
-                                    <input type="file" class="form-control" id="importFile" accept=".json,.zip">
-                                    <div class="form-text">Formats acceptés : JSON (.json) ou ZIP (.zip)</div>
+
+                                <!-- Input fichier (conditionnel) -->
+                                <div class="mb-3 d-none" id="setupFileContainer">
+                                    <label for="setupImportFile" class="form-label">Sélectionner le fichier</label>
+                                    <input type="file" class="form-control" id="setupImportFile" accept=".json,.zip">
+                                    <div class="form-text">Formats acceptés : JSON ou ZIP</div>
+                                </div>
+
+                                <!-- Code sécurité (conditionnel - détection auto si pairing) -->
+                                <div class="mb-3 d-none" id="setupSecurityCodeContainer">
+                                    <label for="setupSecurityCode" class="form-label">
+                                        <i class="bi bi-shield-check me-1"></i>
+                                        Code de sécurité du fichier d'appairage
+                                    </label>
+                                    <input type="tel" class="form-control text-center" id="setupSecurityCode" maxlength="4" placeholder="0000" pattern="[0-9]{4}">
+                                    <div class="form-text">Code fourni avec le fichier d'appairage</div>
                                 </div>
 
                                 <button type="submit" class="btn btn-success w-100 mt-4" id="setupExecuteBtn">Démarrer</button>
@@ -194,6 +254,7 @@
     <script src="js/core/models/recurrents-model.js"></script>
     <script src="js/core/auth.js"></script>
     <script src="js/core/ratchou-app.js"></script>
+    <script src="js/core/network-client.js"></script>
     <script src="js/components/backup-reminder.js"></script>
     <script src="js/components/import-export.js" type="module"></script>
     <script src="js/pages/main-controller.js" type="module"></script>

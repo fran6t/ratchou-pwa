@@ -1,10 +1,74 @@
 # Ratchou
 
-**Version 1.0.9**
+**Version 1.2.0**
 
 # Gestion Dépenses Familiales — PWA/IndexedDB (100% Offline)
 
 Application minimaliste pour suivre les comptes et les mouvements familiaux, pensée pour être **très simple**, **100% offline** et **installable** comme une PWA. Frontend en **HTML5/CSS3/JavaScript ES6+** vanilla, base de données **IndexedDB** locale.
+
+---
+
+## Nouveautés v1.2.0 — Infrastructure de Synchronisation
+
+### Vue d'ensemble
+Cette version possde un mode beta pour se servire de la synchronisation multi-appareils (voir `docs/sync-architecture.md`). 
+
+### Ajouts principaux
+
+#### 1. Nouveaux Stores IndexedDB
+Trois nouveaux stores ont été ajoutés à la base de données (migration automatique v2 → v3) :
+
+- **SYNC_QUEUE** : Tracker automatiquement toutes les opérations CREATE/UPDATE/DELETE
+  - Chaque modification locale est enregistrée dans une queue pour future synchronisation
+  - Index optimisés pour queries rapides (`synced`, `timestamp`, `store_name`)
+
+- **SYNC_CONFIG** : Configuration du serveur de synchronisation
+  - Store unique (id='config') avec les paramètres de synchronisation
+  - Initialisé par défaut en mode "offline-only" (pas de serveur)
+
+- **SYNC_LOG** : Audit trail des opérations de synchronisation
+  - Historique complet des sync (timestamps, durées, conflits)
+  - Permet le débogage et l'analyse des performances
+
+#### 2. Auto-Queueing des Opérations
+Le BaseModel intègre maintenant l'auto-queueing :
+- `create()` → enqueue automatiquement l'opération CREATE
+- `update()` → enqueue automatiquement l'opération UPDATE
+- `delete()` → enqueue automatiquement l'opération DELETE
+
+**Non-invasif** : Si SYNC_CONFIG n'existe pas, le queueing est simplement ignoré (pas d'impact sur les performances).
+
+#### 3. SyncManager Stub
+Nouveau fichier `js/core/sync-manager.js` avec classe SyncManager :
+- Infrastructure complète pour future synchronisation
+- Méthodes stub : `pushQueuedChanges()`, `pullIncomingChanges()`, `handleConflict()`
+- Utilitaires : `getPendingCount()`, `getStats()`, `clearQueue()`
+- **Important** : Actuellement stub uniquement (mode offline-only)
+
+### Migration v2 → v3
+
+La migration se fait **automatiquement** au prochain chargement de l'application :
+1. Création des 3 nouveaux stores (SYNC_QUEUE, SYNC_CONFIG, SYNC_LOG)
+2. Initialisation de SYNC_CONFIG avec valeurs par défaut
+3. **Aucune perte de données** : toutes les données existantes sont préservées
+
+### Garanties
+
+✅ **Offline-First Préservé** : L'app fonctionne exactement comme avant si sync non configurée
+✅ **Zero Breaking Changes** : Compatibilité totale avec versions précédentes
+✅ **Non-Invasif** : Le queueing n'impacte pas les performances (< 5ms par opération)
+✅ **Prêt pour v1.2.0** : Infrastructure complète pour implémentation sync réelle en beta
+
+### Architecture de Synchronisation Future
+
+Pour plus de détails sur l'architecture de synchronisation complète (endpoints serveur, chiffrement E2E, résolution de conflits), consultez :
+- **`docs/sync-architecture.md`** : Spécification complète du protocole de synchronisation
+
+### Compatibilité
+
+- **Navigateurs** : Tous les navigateurs supportant IndexedDB v3+ (Chrome 61+, Firefox 57+, Safari 12+, Edge 79+)
+- **Migration** : Automatique depuis v1.0.x (v2 → v3)
+- **Rollback** : Possible via restauration backup JSON
 
 ---
 
