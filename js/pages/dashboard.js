@@ -298,6 +298,7 @@ class DashboardController {
 
             // Update UI
             this.updateAccountDisplay();
+            this.updateWeekNumber();
             this.updateTransactionsTable();
             this.toggleDuplicateCheckbox(); // Initial check
 
@@ -485,6 +486,18 @@ class DashboardController {
     }
 
     /**
+     * Update the current week number display
+     */
+    updateWeekNumber() {
+        const weekNumberElement = document.getElementById('currentWeekNumber');
+        if (weekNumberElement) {
+            const weekInfo = RatchouUtils.date.getWeekNumber(new Date());
+            const weekLabel = RatchouUtils.date.formatWeek(weekInfo);
+            weekNumberElement.textContent = weekLabel;
+        }
+    }
+
+    /**
      * Update transactions table (with week separators)
      * @param {number|null} newTransactionId - ID of newly created transaction to animate
      */
@@ -503,6 +516,16 @@ class DashboardController {
         let html = '';
         let lastWeekKey = null;
 
+        // Pre-calculate totals by week
+        const weekTotals = {};
+        this.recentTransactions.forEach(transaction => {
+            const weekKey = RatchouUtils.date.getWeekKey(transaction.date_mouvement);
+            if (!weekTotals[weekKey]) {
+                weekTotals[weekKey] = 0;
+            }
+            weekTotals[weekKey] += transaction.amount;
+        });
+
         this.recentTransactions.forEach(transaction => {
             // Check if we need to add week separator
             const weekKey = RatchouUtils.date.getWeekKey(transaction.date_mouvement);
@@ -510,10 +533,24 @@ class DashboardController {
                 const weekInfo = RatchouUtils.date.getWeekNumber(transaction.date_mouvement);
                 const weekLabel = RatchouUtils.date.formatWeek(weekInfo);
 
+                // Calculate week total
+                const weekTotal = weekTotals[weekKey] || 0;
+                const currency = this.currentAccount?.currency || 'EUR';
+                const totalValue = RatchouUtils.currency.fromStorageUnit(weekTotal, currency);
+
+                // Colored rounded badge (only if total != 0)
+                let badgeHtml = '';
+                if (totalValue !== 0) {
+                    const formattedTotal = RatchouUtils.currency.formatWithCurrency(weekTotal, currency);
+                    const badgeClass = totalValue > 0 ? 'bg-success' : 'bg-danger';
+                    const badgeText = totalValue > 0 ? `+${formattedTotal}` : formattedTotal;
+                    badgeHtml = `<span class="badge rounded-pill ${badgeClass} ms-2">${badgeText}</span>`;
+                }
+
                 html += `
                     <tr class="week-separator">
                         <td colspan="2" class="text-center fw-bold py-2 bg-body-secondary text-body">
-                            📅 ${weekLabel}
+                            📅 ${weekLabel} ${badgeHtml}
                         </td>
                     </tr>
                 `;

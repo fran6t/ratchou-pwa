@@ -1,6 +1,6 @@
 # Ratchou
 
-**Version 1.2.0**
+**Version 1.2.1**
 
 # Gestion Dépenses Familiales — PWA/IndexedDB (100% Offline)
 
@@ -8,10 +8,16 @@ Application minimaliste pour suivre les comptes et les mouvements familiaux, pen
 
 ---
 
-## Nouveautés v1.2.0 — Infrastructure de Synchronisation
+## Nouveautés v1.2.1
+- Ajout numéro de semaine dans l'année sur accueil
+- Ajout totaux pour chaque semaine dans l'historique mouvement
+- Ajout possibilité de changer la date d'un mouvement (page mouvements)
+
+## Nouveautés v1.2.0 
+— Infrastructure de Synchronisation
 
 ### Vue d'ensemble
-Cette version possde un mode beta pour se servire de la synchronisation multi-appareils (voir `docs/sync-architecture.md`). 
+Cette version possède un mode beta pour se servir de la synchronisation multi-appareils (voir `docs/sync-architecture.md`). 
 
 ### Ajouts principaux
 

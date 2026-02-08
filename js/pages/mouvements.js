@@ -681,6 +681,11 @@ class MouvementsController {
             document.getElementById('edit_type_depense_id').value = transaction.expense_type_id || '';
             document.getElementById('edit_rmq').value = transaction.description || '';
 
+            // Populate date and time fields
+            const dateObj = new Date(transaction.date_mouvement);
+            document.getElementById('edit_date').value = RatchouUtils.date.toInputDate(transaction.date_mouvement);
+            document.getElementById('edit_time').value = dateObj.toTimeString().slice(0, 5); // HH:MM format
+
             // Store currency for update
             this.currentEditCurrency = currency;
 
@@ -782,12 +787,18 @@ class MouvementsController {
             // Use stored currency from editMovement
             const currency = this.currentEditCurrency || 'EUR';
 
+            // Combine date and time into ISO string
+            const dateValue = formData.get('date');
+            const timeValue = formData.get('time');
+            const combinedDateTime = `${dateValue}T${timeValue}:00.000Z`;
+
             const updateData = {
                 amount: RatchouUtils.currency.toStorageUnit(parseFloat(formData.get('montant')), currency),
                 category_id: formData.get('categorie_id') || null,
                 payee_id: formData.get('beneficiaire_id') || null,
                 expense_type_id: formData.get('type_depense_id') || null,
-                description: formData.get('rmq') || null
+                description: formData.get('rmq') || null,
+                date_mouvement: combinedDateTime
             };
 
             await ratchouApp.models.transactions.update(movementId, updateData);

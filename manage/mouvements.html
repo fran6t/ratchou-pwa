@@ -307,21 +307,33 @@
                             <input type="number" step="any" class="form-control" id="edit_montant" name="montant" required>
                             <span class="input-group-text" id="edit_currency_symbol">€</span>
                         </div>
-                        
+
+                        <!-- Date and Time fields -->
+                        <div class="row mb-3">
+                            <div class="col-md-7">
+                                <label for="edit_date" class="form-label">Date</label>
+                                <input type="date" class="form-control" id="edit_date" name="date" required>
+                            </div>
+                            <div class="col-md-5">
+                                <label for="edit_time" class="form-label">Heure</label>
+                                <input type="time" class="form-control" id="edit_time" name="time" required>
+                            </div>
+                        </div>
+
                         <div class="mb-3">
-                            <label class="form-label">Catégorie</label>
+                            <!-- <label class="form-label">Catégorie</label> -->
                             <button type="button" class="btn btn-outline-primary rounded-pill w-100" data-panel-target="#categoriePanel" data-input-target="edit_categorie_id" data-icon="📂" data-original-text="Catégorie">📂 Catégorie</button>
                             <input type="hidden" id="edit_categorie_id" name="categorie_id">
                         </div>
 
                         <div class="mb-3">
-                            <label class="form-label">Bénéficiaire</label>
+                            <!-- <label class="form-label">Bénéficiaire</label> -->
                             <button type="button" class="btn btn-outline-primary rounded-pill w-100" data-panel-target="#beneficiairePanel" data-input-target="edit_beneficiaire_id" data-icon="👥" data-original-text="Bénéficiaire">👥 Bénéficiaire</button>
                             <input type="hidden" id="edit_beneficiaire_id" name="beneficiaire_id">
                         </div>
 
                         <div class="mb-3">
-                            <label class="form-label">Type de paiement</label>
+                            <!-- <label class="form-label">Type de paiement</label> -->
                             <button type="button" class="btn btn-outline-primary rounded-pill w-100" data-panel-target="#typeDepensePanel" data-input-target="edit_type_depense_id" data-icon="💳" data-original-text="Type">💳 Type</button>
                             <input type="hidden" id="edit_type_depense_id" name="type_depense_id">
                         </div>
