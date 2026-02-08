@@ -7,6 +7,9 @@
 Application minimaliste pour suivre les comptes et les mouvements familiaux, pensée pour être **très simple**, **100% offline** et **installable** comme une PWA. Frontend en **HTML5/CSS3/JavaScript ES6+** vanilla, base de données **IndexedDB** locale.
 
 ---
+## Nouveautés v1.2.2
+- Ajout possibilité de saisir une addition ou soustraction directement da,s le champs qui sert a modifier le montant d'un compte page accueil par exemple si le solde est de -125 et qu'au final il manque 50 on peut saisir -125+50 et ça enregistrera -75
+- Ajout de la possibilité de changer la date d'un mouvement sur la page accueil (avant c'etait uniquement dans la gestion des mouvements)
 
 ## Nouveautés v1.2.1
 - Ajout numéro de semaine dans l'année sur accueil

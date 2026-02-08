@@ -155,9 +155,13 @@
                 <div class="modal-body">
                     <form id="balanceForm">
                         <div class="mb-3">
-                            <label for="newBalance" class="form-label">Nouveau solde (€)</label>
-                            <input type="number" class="form-control" id="newBalance" step="0.01" required>
+                            <label for="newBalance" class="form-label">Nouveau solde</label>
+                            <input type="text" class="form-control" id="newBalance" required
+                                   placeholder="Ex: 200-118 ou 220">
                             <div class="form-text">Solde actuel: <span id="currentBalance">0,00 €</span></div>
+                            <div id="calculatedResult" class="form-text text-primary mt-2 d-none" aria-live="polite">
+                                <!-- Calculated result displayed here -->
+                            </div>
                         </div>
                     </form>
                 </div>
@@ -285,21 +289,37 @@
                             <input type="number" step="any" class="form-control" id="edit_montant" name="montant" required>
                             <span class="input-group-text" id="edit_currency_symbol">€</span>
                         </div>
-                        
+
+                        <!-- Date and Time fields -->
+                        <div class="row mb-3">
+                            <div class="col-md-7">
+                                <div class="input-group">
+                                    <span class="input-group-text">Date</span>
+                                    <input type="date" class="form-control" id="edit_date" name="date" required>
+                                </div>
+                            </div>
+                            <div class="col-md-5">
+                                <div class="input-group">
+                                    <span class="input-group-text">Heure</span>
+                                    <input type="time" class="form-control" id="edit_time" name="time" required>
+                                </div>
+                            </div>
+                        </div>
+
                         <div class="mb-3">
-                            <label class="form-label">Catégorie</label>
+                            <!-- <label class="form-label">Catégorie</label> -->
                             <button type="button" class="btn btn-outline-primary rounded-pill w-100" data-panel-target="#categoriePanel" data-input-target="edit_categorie_id" data-icon="📂" data-original-text="Sélectionner...">📂 Sélectionner...</button>
                             <input type="hidden" id="edit_categorie_id" name="categorie_id">
                         </div>
                         
                         <div class="mb-3">
-                            <label class="form-label">Bénéficiaire</label>
+                            <!-- <label class="form-label">Bénéficiaire</label> -->
                             <button type="button" class="btn btn-outline-primary rounded-pill w-100" data-panel-target="#beneficiairePanel" data-input-target="edit_beneficiaire_id" data-icon="👥" data-original-text="Sélectionner...">👥 Sélectionner...</button>
                             <input type="hidden" id="edit_beneficiaire_id" name="beneficiaire_id">
                         </div>
                         
                         <div class="mb-3">
-                            <label class="form-label">Type de paiement</label>
+                            <!-- <label class="form-label">Type de paiement</label> --> 
                             <button type="button" class="btn btn-outline-primary rounded-pill w-100" data-panel-target="#typeDepensePanel" data-input-target="edit_type_depense_id" data-icon="💳" data-original-text="Sélectionner...">💳 Sélectionner...</button>
                             <input type="hidden" id="edit_type_depense_id" name="type_depense_id">
                         </div>

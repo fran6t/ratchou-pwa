@@ -24,6 +24,8 @@ class DashboardController {
         this.accountSelectModal = null;
         this.balanceModal = null;
         this.editMovementModal = null;
+        this.balanceCalculationHandler = null;
+        this.balanceEnterHandler = null;
     }
 
     /**
@@ -812,11 +814,69 @@ class DashboardController {
     /**
      * Setup balance correction modal
      */
+    /**
+     * Evaluate a balance expression (simple addition/subtraction)
+     * @param {string} input - Expression like "200-118" or "200+20" or "-1420+20"
+     * @returns {object} { valid: boolean, result: number|null, error: string|null }
+     */
+    evaluateBalanceExpression(input) {
+        if (!input || typeof input !== 'string') {
+            return { valid: false, result: null, error: 'Entrée invalide' };
+        }
+
+        const trimmed = input.trim();
+
+        // Validate characters (only digits, ., +, -, spaces)
+        if (!/^[\d.\s+\-]+$/.test(trimmed)) {
+            return { valid: false, result: null, error: 'Caractères non autorisés' };
+        }
+
+        // Check if it's a simple number (no operators)
+        if (!trimmed.includes('+') && !trimmed.includes('-')) {
+            const num = parseFloat(trimmed);
+            return isNaN(num)
+                ? { valid: false, result: null, error: 'Nombre invalide' }
+                : { valid: true, result: num, error: null };
+        }
+
+        // Parse and calculate - handles negative numbers like "-1420+20"
+        try {
+            // Match: optional sign, then digits/dots, repeated with operators
+            // Examples: "-1420", "+20", "50", "-30.5"
+            const parts = trimmed.match(/[+\-]?[\d.]+/g);
+
+            if (!parts || parts.length === 0) {
+                return { valid: false, result: null, error: 'Expression invalide' };
+            }
+
+            // First number
+            let result = parseFloat(parts[0]);
+            if (isNaN(result)) {
+                return { valid: false, result: null, error: 'Expression invalide' };
+            }
+
+            // Process remaining parts (each starts with + or -)
+            for (let i = 1; i < parts.length; i++) {
+                const num = parseFloat(parts[i]);
+                if (isNaN(num)) {
+                    return { valid: false, result: null, error: 'Expression invalide' };
+                }
+                result += num; // parseFloat handles the sign correctly
+            }
+
+            return { valid: true, result, error: null };
+        } catch (error) {
+            return { valid: false, result: null, error: 'Erreur de calcul' };
+        }
+    }
+
     setupBalanceModal() {
         if (!this.currentAccount) return;
 
         const currentBalanceSpan = document.getElementById('currentBalance');
         const newBalanceInput = document.getElementById('newBalance');
+        const calculatedResult = document.getElementById('calculatedResult');
+        const updateBalanceBtn = document.getElementById('updateBalanceBtn');
 
         const currency = this.currentAccount.currency || 'EUR';
         const currentBalance = RatchouUtils.currency.fromStorageUnit(this.currentAccount.balance, currency);
@@ -827,6 +887,47 @@ class DashboardController {
         newBalanceInput.value = currentBalance.toFixed(decimals);
         newBalanceInput.focus();
         newBalanceInput.select();
+
+        // Hide calculated result initially
+        calculatedResult.classList.add('d-none');
+
+        // Remove previous event listeners if any
+        if (this.balanceCalculationHandler) {
+            newBalanceInput.removeEventListener('input', this.balanceCalculationHandler);
+        }
+        if (this.balanceEnterHandler) {
+            newBalanceInput.removeEventListener('keydown', this.balanceEnterHandler);
+        }
+
+        // Real-time calculation display
+        this.balanceCalculationHandler = () => {
+            const input = newBalanceInput.value.trim();
+            const evaluation = this.evaluateBalanceExpression(input);
+
+            // Show result only if expression contains operators
+            const hasOperators = input.includes('+') || input.includes('-');
+
+            if (hasOperators && evaluation.valid) {
+                const storageAmount = RatchouUtils.currency.toStorageUnit(evaluation.result, currency);
+                const formatted = RatchouUtils.currency.formatWithCurrency(storageAmount, currency);
+                calculatedResult.innerHTML = `Résultat du calcul : <strong>${formatted}</strong>`;
+                calculatedResult.classList.remove('d-none');
+            } else {
+                calculatedResult.classList.add('d-none');
+            }
+        };
+
+        // Handle Enter key to submit
+        this.balanceEnterHandler = (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                updateBalanceBtn.click();
+            }
+        };
+
+        // Attach event listeners
+        newBalanceInput.addEventListener('input', this.balanceCalculationHandler);
+        newBalanceInput.addEventListener('keydown', this.balanceEnterHandler);
     }
 
     /**
@@ -835,15 +936,23 @@ class DashboardController {
     async handleBalanceUpdate() {
         try {
             const newBalanceInput = document.getElementById('newBalance');
-            const newBalance = parseFloat(newBalanceInput.value);
-            
-            if (isNaN(newBalance)) {
-                this.showError('Veuillez saisir un montant valide');
+            const input = newBalanceInput.value.trim();
+
+            // Evaluate expression or simple number
+            const evaluation = this.evaluateBalanceExpression(input);
+
+            if (!evaluation.valid) {
+                this.showError('Veuillez saisir un montant ou calcul valide');
                 return;
             }
 
+            const currency = this.currentAccount.currency || 'EUR';
+            const newBalance = evaluation.result;
+
+            console.log('💰 Balance expression evaluated:', { input, newBalance, currency });
+
             const result = await ratchouApp.models.accounts.updateBalance(this.currentAccount.id, newBalance);
-            
+
             if (result.success) {
                 this.currentAccount = result.data;
                 this.updateAccountDisplay();
@@ -852,7 +961,7 @@ class DashboardController {
             } else {
                 this.showError('Erreur: ' + result.message);
             }
-            
+
         } catch (error) {
             console.error('Error updating balance:', error);
             this.showError('Erreur de mise à jour: ' + error.message);
@@ -966,6 +1075,15 @@ class DashboardController {
             document.getElementById('edit_type_depense_id').value = transaction.expense_type_id || '';
             document.getElementById('edit_rmq').value = transaction.description || '';
 
+            // Fill date and time fields
+            if (transaction.date_mouvement) {
+                const dateObj = new Date(transaction.date_mouvement);
+                const dateStr = dateObj.toISOString().split('T')[0]; // YYYY-MM-DD
+                const timeStr = dateObj.toTimeString().slice(0, 5); // HH:MM
+                document.getElementById('edit_date').value = dateStr;
+                document.getElementById('edit_time').value = timeStr;
+            }
+
             // Update button texts
             this.updateEditButtons(enrichedTransaction);
 
@@ -1046,9 +1164,18 @@ class DashboardController {
             // Convert amount using currency-aware conversion
             const montantValue = parseFloat(formData.get('montant'));
 
+            // Combine date and time into ISO format
+            const dateStr = formData.get('date');
+            const timeStr = formData.get('time');
+            let dateMovement = transaction.date_mouvement; // Keep original if not provided
+            if (dateStr && timeStr) {
+                dateMovement = `${dateStr}T${timeStr}:00`;
+            }
+
             const updateData = {
                 id: transactionId,
                 amount: RatchouUtils.currency.toStorageUnit(montantValue, currency),
+                date_mouvement: dateMovement,
                 category_id: formData.get('categorie_id') || null,
                 payee_id: formData.get('beneficiaire_id') || null,
                 expense_type_id: formData.get('type_depense_id') || null,
