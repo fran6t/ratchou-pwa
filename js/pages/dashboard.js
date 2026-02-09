@@ -295,6 +295,20 @@ class DashboardController {
             this.allAccounts = dashboardData.allAccounts;
             this.recentTransactions = dashboardData.recentTransactions;
 
+            // Verify that the current account exists in the list of accounts
+            // (handles case where deleted account was the current one)
+            const accountExists = this.allAccounts.some(acc => acc.id === this.currentAccount.id);
+            if (!accountExists) {
+                console.log('🏦 Compte courant introuvable - rechargement du compte par défaut');
+                // Force reload current account (will fallback to principal)
+                const freshAccount = await ratchouApp.getCurrentAccount();
+                this.currentAccount = freshAccount;
+
+                // Reload transactions for the new account
+                this.recentTransactions = await ratchouApp.models.transactions.getRecentByAccount(freshAccount.id, 20);
+                this.recentTransactions = await ratchouApp.models.transactions.getEnriched(this.recentTransactions);
+            }
+
             // Load form data
             await this.loadFormData();
 

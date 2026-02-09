@@ -278,10 +278,15 @@ class AccountsModel extends BaseModel {
             if (account && account.is_principal) {
                 return RatchouUtils.error.validation('Impossible de supprimer le compte principal');
             }
-            const transactionCount = await this.db.count('MOUVEMENTS', 'account_id', IDBKeyRange.only(accountId));
-            if (transactionCount > 0) {
+
+            // Count only ACTIVE transactions (is_deleted = 0)
+            // Note: softDelete marks transactions with is_deleted=1, so we must filter them out
+            const allTransactions = await this.db.getAll('MOUVEMENTS', 'account_id', IDBKeyRange.only(accountId));
+            const activeTransactions = allTransactions.filter(t => !t.is_deleted);
+            if (activeTransactions.length > 0) {
                 return RatchouUtils.error.validation('Ce compte contient des mouvements et ne peut pas être supprimé');
             }
+
             const recurringCount = await this.db.count('DEPENSES_FIXES', 'account_id', IDBKeyRange.only(accountId));
             if (recurringCount > 0) {
                 return RatchouUtils.error.validation('Ce compte contient des dépenses fixes et ne peut pas être supprimé');

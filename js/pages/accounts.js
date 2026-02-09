@@ -109,7 +109,7 @@ class AccountsController {
      */
     showLoading() {
         if (this.loadingOverlay) {
-            this.loadingOverlay.style.display = 'flex';
+            this.loadingOverlay.style.setProperty('display', 'flex', 'important');
         }
     }
 
@@ -118,7 +118,7 @@ class AccountsController {
      */
     hideLoading() {
         if (this.loadingOverlay) {
-            this.loadingOverlay.style.display = 'none';
+            this.loadingOverlay.style.setProperty('display', 'none', 'important');
         }
     }
 
@@ -524,9 +524,10 @@ class AccountsController {
     }
 
     /**
-     * Delete account
+     * Delete account with cascade deletion of transactions
      */
     async deleteAccount(id, name) {
+        // 1st confirmation
         if (!confirm(`Êtes-vous sûr de vouloir supprimer le compte "${name}" ?\n\nAttention: Cette action supprimera également toutes les transactions associées.`)) {
             return;
         }
@@ -534,8 +535,10 @@ class AccountsController {
         try {
             this.showLoading();
 
-            // Check if account has transactions
+            // Get transactions associated with this account
             const transactions = await ratchouApp.models.transactions.getByAccount(id);
+
+            // 2nd confirmation if transactions exist
             if (transactions.length > 0) {
                 const confirmWithTransactions = confirm(
                     `Le compte "${name}" contient ${transactions.length} transaction(s).\n\n` +
@@ -543,14 +546,31 @@ class AccountsController {
                     `Êtes-vous vraiment sûr de vouloir continuer ?`
                 );
                 if (!confirmWithTransactions) {
+                    this.hideLoading();
                     return;
                 }
+
+                // Cascade deletion: delete all transactions
+                console.log('🗑️ Suppression en cascade de', transactions.length, 'transaction(s)...');
+                for (const transaction of transactions) {
+                    await ratchouApp.models.transactions.delete(transaction.id);
+                }
+                console.log('✅ Transactions supprimées');
             }
 
+            // Delete the account (now without transactions)
             const result = await ratchouApp.models.accounts.delete(id);
 
             if (result.success) {
                 this.showSuccess('Compte supprimé avec succès');
+
+                // If the deleted account was the current account, clear it from storage
+                const currentAccountId = RatchouUtils.storage.get('current_account_id');
+                if (currentAccountId === id) {
+                    console.log('🏦 Compte courant supprimé - nettoyage du localStorage');
+                    RatchouUtils.storage.remove('current_account_id');
+                }
+
                 await this.loadAccounts();
             } else {
                 this.showError(result.message || 'Erreur lors de la suppression du compte');
